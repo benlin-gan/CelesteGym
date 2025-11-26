@@ -39,7 +39,7 @@
         </ItemGroup>
         <PackageMod Files="@(FilesToPackage)" OutputPath="..\CelesteGym.zip" />
     </Target>
-    
+
     <PropertyGroup>
         <PathMap>$(MSBuildProjectDirectory)=CelesteGym/</PathMap>
     </PropertyGroup>

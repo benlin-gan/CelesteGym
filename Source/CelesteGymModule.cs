@@ -1,4 +1,8 @@
 ﻿using System;
+using Celeste;
+using Celeste.Mod;
+using Monocle;
+using Microsoft.Xna.Framework;
 
 namespace Celeste.Mod.CelesteGym;
 
@@ -26,10 +30,14 @@ public class CelesteGymModule : EverestModule {
     }
 
     public override void Load() {
-        // TODO: apply any hooks that should always be active
+        On.Monocle.Engine.Update += TestHook;
     }
 
     public override void Unload() {
-        // TODO: unapply any hooks applied in Load()
+        On.Monocle.Engine.Update -= TestHook;
+    }
+    private static void TestHook(On.Monocle.Engine.orig_Update orig, Engine self, GameTime gameTime) {
+        Logger.Log(LogLevel.Info, "YourModName", "Hook is working!");
+        orig(self, gameTime);  // Don't forget to call the original!
     }
 }
