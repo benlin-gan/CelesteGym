@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework;
 namespace Celeste.Mod.CelesteGym;
 
 public class CelesteGymModule : EverestModule {
+
     public static CelesteGymModule Instance { get; private set; }
 
     public override Type SettingsType => typeof(CelesteGymModuleSettings);
@@ -18,6 +19,7 @@ public class CelesteGymModule : EverestModule {
     public override Type SaveDataType => typeof(CelesteGymModuleSaveData);
     public static CelesteGymModuleSaveData SaveData => (CelesteGymModuleSaveData) Instance._SaveData;
 
+    private GameState currentState;
     public CelesteGymModule() {
         Instance = this;
 #if DEBUG
@@ -30,19 +32,43 @@ public class CelesteGymModule : EverestModule {
     }
 
     public override void Load() {
-        Everest.Events.Level.OnBeforeUpdate += TestHook;
+        Everest.Events.Level.OnBeforeUpdate += ExtractState;
+
+    }
+    public override void Unload() {
+        Everest.Events.Level.OnBeforeUpdate -= ExtractState;
     }
 
-    public override void Unload() {
-        Everest.Events.Level.OnBeforeUpdate -= TestHook;
-    }
-    private static void TestHook(Level level) {
+    private void ExtractState(Level level) {
         Player player = level.Tracker.GetEntity<Player>();
-        if(player != null){
-            Logger.Log(LogLevel.Info, "YourModName", SerializePlayer(player));
+        if (player == null) return;
+        
+        // Fill player state
+        currentState.PosX = player.Position.X;
+        currentState.PosY = player.Position.Y;
+        currentState.VelX = player.Speed.X;
+        currentState.VelY = player.Speed.Y;
+        currentState.Stamina = player.Stamina;
+        currentState.Dashes = (byte)player.Dashes;
+        currentState.OnGround = (byte)(player.OnGround() ? 1 : 0);
+        currentState.Dead = (byte)(player.Dead ? 1 : 0);
+        currentState.FrameCount++;
+        
+        // Build observation grid
+        unsafe {
+            fixed (byte* gridPtr = currentState.LocalGrid) {
+                GridManager.BuildLocalGrid(level, player, gridPtr);
+                if(currentState.FrameCount % 60 == 0){
+                    string gridDump = GridManager.DumpGrid(gridPtr);
+                    Logger.Log(LogLevel.Info, "CelesteGym", "Grid state:\n" + gridDump);
+                }
+            }
         }
-    }
-    private static string SerializePlayer(Player player){
-        return $"{player.Position.X:F1}, {player.Position.Y:F1}";
+        
+        // TODO: Write to shared memory
+        Logger.Log(LogLevel.Info, "CelesteGym", 
+            $"State: Pos=({currentState.PosX:F1}, {currentState.PosY:F1}) " +
+            $"Vel=({currentState.VelX:F1}, {currentState.VelY:F1}) " +
+            $"Frame={currentState.FrameCount}");
     }
 }
