@@ -24,7 +24,6 @@ public struct GameState {
     public byte Dead;          // 0 or 1
     public byte CanDash;       // 0 or 1
     public byte Padding1;
-    public ushort Padding2;
     public uint FrameCount;
     
     // Local observation grid (1024 bytes)
