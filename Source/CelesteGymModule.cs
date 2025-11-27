@@ -30,14 +30,17 @@ public class CelesteGymModule : EverestModule {
     }
 
     public override void Load() {
-        On.Monocle.Engine.Update += TestHook;
+        Everest.Events.Level.OnBeforeUpdate += TestHook;
     }
 
     public override void Unload() {
-        On.Monocle.Engine.Update -= TestHook;
+        Everest.Events.Level.OnBeforeUpdate -= TestHook;
     }
-    private static void TestHook(On.Monocle.Engine.orig_Update orig, Engine self, GameTime gameTime) {
-        Logger.Log(LogLevel.Info, "YourModName", "Hook is working!");
-        orig(self, gameTime);  // Don't forget to call the original!
+    private static void TestHook(Level level) {
+        Player player = level.Tracker.GetEntity<Player>();
+        Logger.Log(LogLevel.Info, "YourModName", serializePlayer(player));
+    }
+    private static string serializePlayer(Player player){
+        return $"{player.Position.X:F1}, {player.Position.Y:F1}";
     }
 }
