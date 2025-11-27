@@ -42,6 +42,7 @@
 
     <PropertyGroup>
         <PathMap>$(MSBuildProjectDirectory)=CelesteGym/</PathMap>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <!-- Inline task used to create a .zip for the mod -->

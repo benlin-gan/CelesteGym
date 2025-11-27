@@ -8,7 +8,7 @@ namespace Celeste.Mod.CelesteGym;
 
 public class CelesteGymModule : EverestModule {
 
-    public static CelesteGymModule Instance { get; private set; }
+    public static CelesteGymModule Instance { get; private set; } = null!;
 
     public override Type SettingsType => typeof(CelesteGymModuleSettings);
     public static CelesteGymModuleSettings Settings => (CelesteGymModuleSettings) Instance._Settings;
@@ -20,6 +20,8 @@ public class CelesteGymModule : EverestModule {
     public static CelesteGymModuleSaveData SaveData => (CelesteGymModuleSaveData) Instance._SaveData;
 
     private GameState currentState;
+    private SharedMemoryBridge? sharedMemory;
+    
     public CelesteGymModule() {
         Instance = this;
 #if DEBUG
@@ -32,13 +34,41 @@ public class CelesteGymModule : EverestModule {
     }
 
     public override void Load() {
-        Everest.Events.Level.OnBeforeUpdate += ExtractState;
-
+        sharedMemory = new SharedMemoryBridge();
+        if (!sharedMemory.Initialize()) {
+            Logger.Log(LogLevel.Error, "CelesteGym", "Failed to initialize shared memory!");
+            return;
+        }
+        Everest.Events.Level.OnBeforeUpdate += OnLevelUpdate;
+        
+        Logger.Log(LogLevel.Info, "CelesteGym", "Module loaded successfully");
     }
     public override void Unload() {
-        Everest.Events.Level.OnBeforeUpdate -= ExtractState;
+        Everest.Events.Level.OnBeforeUpdate -= OnLevelUpdate;
+               
+        sharedMemory?.Dispose();
+        sharedMemory = null;
+        
+        Logger.Log(LogLevel.Info, "CelesteGym", "Module unloaded");
     }
-
+    private void OnLevelUpdate(Level level) {
+        if (sharedMemory == null) return;
+        
+        Player player = level.Tracker.GetEntity<Player>();
+        if (player == null) return;
+        
+        // Extract state
+        ExtractState(level);
+        
+        // Write to shared memory
+        sharedMemory.WriteState(ref currentState);
+        
+        // Read action from Python
+        ushort action = sharedMemory.ReadAction();
+        Logger.Log(LogLevel.Info, "CelesteGym", $"Action: {action}");
+        // Apply action (TODO: implement InputController)
+        // InputController.ApplyAction(action);
+    }
     private void ExtractState(Level level) {
         Player player = level.Tracker.GetEntity<Player>();
         if (player == null) return;
@@ -58,17 +88,18 @@ public class CelesteGymModule : EverestModule {
         unsafe {
             fixed (byte* gridPtr = currentState.LocalGrid) {
                 GridManager.BuildLocalGrid(level, player, gridPtr);
-                if(currentState.FrameCount % 60 == 0){
+                if(currentState.FrameCount % 600 == 0){
                     string gridDump = GridManager.DumpGrid(gridPtr);
+                    Logger.Log(LogLevel.Info, "CelesteGym", $"{currentState.FrameCount}");
                     Logger.Log(LogLevel.Info, "CelesteGym", "Grid state:\n" + gridDump);
                 }
             }
         }
         
         // TODO: Write to shared memory
-        Logger.Log(LogLevel.Info, "CelesteGym", 
-            $"State: Pos=({currentState.PosX:F1}, {currentState.PosY:F1}) " +
-            $"Vel=({currentState.VelX:F1}, {currentState.VelY:F1}) " +
-            $"Frame={currentState.FrameCount}");
+        //Logger.Log(LogLevel.Info, "CelesteGym", 
+        //   $"State: Pos=({currentState.PosX:F1}, {currentState.PosY:F1}) " +
+        //  $"Vel=({currentState.VelX:F1}, {currentState.VelY:F1}) " +
+        //   $"Frame={currentState.FrameCount}");
     }
 }
