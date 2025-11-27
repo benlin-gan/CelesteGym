@@ -38,9 +38,11 @@ public class CelesteGymModule : EverestModule {
     }
     private static void TestHook(Level level) {
         Player player = level.Tracker.GetEntity<Player>();
-        Logger.Log(LogLevel.Info, "YourModName", serializePlayer(player));
+        if(player != null){
+            Logger.Log(LogLevel.Info, "YourModName", SerializePlayer(player));
+        }
     }
-    private static string serializePlayer(Player player){
+    private static string SerializePlayer(Player player){
         return $"{player.Position.X:F1}, {player.Position.Y:F1}";
     }
 }
