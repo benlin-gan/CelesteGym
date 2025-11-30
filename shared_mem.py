@@ -285,7 +285,7 @@ def test_connection(duration_sec: float = 5.0):
     
     try:
         while time.time() - start_time < duration_sec:
-            bridge.write_action(4)
+            bridge.write_action(16)
             state = bridge.read_state()
             
             if state is not None:
@@ -321,4 +321,4 @@ def test_connection(duration_sec: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_connection(duration_sec=5.0)
+    test_connection(duration_sec=60.0)
