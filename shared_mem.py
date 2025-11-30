@@ -207,7 +207,7 @@ class SharedMemoryBridge:
         Write action to shared memory.
         
         Args:
-            action: Action ID (0-14)
+            action: Action ID (0-66535)
             
         Returns:
             True if written successfully
@@ -217,9 +217,9 @@ class SharedMemoryBridge:
         
         try:
             # Validate action
-            if not (0 <= action <= 14):
+            if not (0 <= action <= 66535):
                 print(f"Warning: Invalid action {action}, clamping to [0, 14]")
-                action = max(0, min(14, action))
+                action = max(0, min(66535, action))
             
             # Write action (ushort = 2 bytes)
             self.shm.seek(self.ACTION_OFFSET)
