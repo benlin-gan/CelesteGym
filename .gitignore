@@ -355,3 +355,5 @@ MigrationBackup/
 # JetBrains Rider
 .idea
 
+# Virtual Env
+myenv/

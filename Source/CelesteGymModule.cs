@@ -34,7 +34,7 @@ public class CelesteGymModule : EverestModule {
     
     // Fast-forward configuration
     private bool fastForwardEnabled = true;
-    private int updatesPerFrame = 400;  // 400x speedup target
+    private int updatesPerFrame = 1;  // 400x speedup target
     
     public CelesteGymModule() {
         Instance = this;
@@ -86,8 +86,8 @@ public class CelesteGymModule : EverestModule {
         Level? level = Engine.Scene as Level;
         if (level != null) {
             // update cached action from Python
-            InputController.action = 4;//Instance.sharedMemory.ReadAction();
-            
+            // InputController.action = 4;//Instance.sharedMemory.ReadAction();
+            InputController.action = Instance.sharedMemory.ReadAction();
             // Now propagate to virtual buttons
             orig();
             InputController.ApplyAction();

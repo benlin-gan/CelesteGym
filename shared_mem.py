@@ -110,30 +110,30 @@ class SharedMemoryBridge:
                     GENERIC_WRITE = 0x40000000
                     FILE_MAP_ALL_ACCESS = 0xF001F
                     
-                    handle = kernel32.OpenFileMappingW(
-                        FILE_MAP_ALL_ACCESS,
-                        False,
-                        self.SHARED_MEMORY_NAME
-                    )
+                    # handle = kernel32.OpenFileMappingW(
+                    #     FILE_MAP_ALL_ACCESS,
+                    #     False,
+                    #     self.SHARED_MEMORY_NAME
+                    # )
                     
-                    if not handle:
-                        raise OSError(f"Could not open shared memory: {ctypes.get_last_error()}")
+                    # if not handle:
+                    #     raise OSError(f"Could not open shared memory: {ctypes.get_last_error()}")
                     
-                    # Map view of file
-                    addr = kernel32.MapViewOfFile(
-                        handle,
-                        FILE_MAP_ALL_ACCESS,
-                        0,
-                        0,
-                        self.TOTAL_SIZE
-                    )
+                    # # Map view of file
+                    # addr = kernel32.MapViewOfFile(
+                    #     handle,
+                    #     FILE_MAP_ALL_ACCESS,
+                    #     0,
+                    #     0,
+                    #     self.TOTAL_SIZE
+                    # )
                     
-                    if not addr:
-                        kernel32.CloseHandle(handle)
-                        raise OSError(f"Could not map view: {ctypes.get_last_error()}")
+                    # if not addr:
+                    #     kernel32.CloseHandle(handle)
+                    #     raise OSError(f"Could not map view: {ctypes.get_last_error()}")
                     
                     # Create mmap object from address
-                    self.shm = mmap.mmap(-1, self.TOTAL_SIZE, access=mmap.ACCESS_WRITE)
+                    self.shm = mmap.mmap(-1, self.TOTAL_SIZE, access=mmap.ACCESS_WRITE, tagname=self.SHARED_MEMORY_NAME)
                     
                     # Note: This is a simplified version. Full implementation would need
                     # to properly wrap the Windows handle. For now, we'll use a workaround.
@@ -285,6 +285,7 @@ def test_connection(duration_sec: float = 5.0):
     
     try:
         while time.time() - start_time < duration_sec:
+            bridge.write_action(4)
             state = bridge.read_state()
             
             if state is not None:
@@ -305,6 +306,7 @@ def test_connection(duration_sec: float = 5.0):
                             print(''.join(['#' if cell == 1 else '.' for cell in row]))
             
             time.sleep(0.01)  # 100 Hz polling
+        bridge.write_action(0)
     
     except KeyboardInterrupt:
         print("\nTest interrupted")
@@ -319,4 +321,4 @@ def test_connection(duration_sec: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_connection(duration_sec=60.0)
+    test_connection(duration_sec=5.0)
