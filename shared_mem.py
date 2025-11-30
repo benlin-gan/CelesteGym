@@ -15,6 +15,7 @@ import mmap
 import time
 from typing import Optional, Tuple
 import numpy as np
+import random
 
 class GameState:
     """
@@ -217,9 +218,9 @@ class SharedMemoryBridge:
         
         try:
             # Validate action
-            if not (0 <= action <= 66535):
+            if not (0 <= action <= 127):
                 print(f"Warning: Invalid action {action}, clamping to [0, 14]")
-                action = max(0, min(66535, action))
+                action = max(0, min(127, action))
             
             # Write action (ushort = 2 bytes)
             self.shm.seek(self.ACTION_OFFSET)
@@ -285,7 +286,8 @@ def test_connection(duration_sec: float = 5.0):
     
     try:
         while time.time() - start_time < duration_sec:
-            bridge.write_action(16)
+            action = random.randint(0, 127)
+            bridge.write_action(action)
             state = bridge.read_state()
             
             if state is not None:
