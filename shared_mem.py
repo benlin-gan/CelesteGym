@@ -304,7 +304,7 @@ def test_connection(duration_sec: float = 5.0):
             # get action
             prev_state = bridge.read_state()
             # action = greedy_learning.generate_action(prev_state)
-            action = 69 #func_approx.get_action(prev_state)
+            action = func_approx.get_action(prev_state)
             
             bridge.write_action(action)
             # get state
