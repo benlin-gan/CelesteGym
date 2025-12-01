@@ -23,7 +23,7 @@ public static class InputController {
     /// </summary>
     public static void ApplyAction() {
         // Decode action bits
-        Logger.Log(LogLevel.Info, "CelesteGym", $"ApplyAction called: {action}");
+        //Logger.Log(LogLevel.Info, "CelesteGym", $"ApplyAction called: {action}");
         bool left = (action & 0x01) != 0;
         bool right = (action & 0x02) != 0;
         bool up = (action & 0x04) != 0;

@@ -91,7 +91,7 @@ public class CelesteGymModule : EverestModule {
             InputController.ApplyAction();
             MInput.UpdateVirtualInputs(); 
             
-            Logger.Log(LogLevel.Info, "CelesteGym",  $"After update - Jump pressed: {Input.Jump.Pressed}");
+            //Logger.Log(LogLevel.Info, "CelesteGym",  $"After update - Jump pressed: {Input.Jump.Pressed}");
         }else{
             orig();
         }
