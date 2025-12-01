@@ -32,9 +32,6 @@ public class CelesteGymModule : EverestModule {
     private uint updateCount = 0;
     private uint renderFrameCount = 0;
     
-    // Fast-forward configuration
-    private bool fastForwardEnabled = true;
-    private int updatesPerFrame = 1;  // 400x speedup target
     
     public CelesteGymModule() {
         Instance = this;
@@ -53,8 +50,6 @@ public class CelesteGymModule : EverestModule {
             return;
         }
         
-        fastForwardEnabled = Settings.FastForwardEnabled;
-        updatesPerFrame = Settings.UpdatesPerFrame; 
         // Hook Celeste.Update to run multiple times per render frame
         // This is how we achieve speedup without breaking physics
         On.Celeste.Celeste.Update += FastForwardUpdate;
@@ -70,7 +65,7 @@ public class CelesteGymModule : EverestModule {
 
 
         Logger.Log(LogLevel.Info, "CelesteGym", 
-            $"Module loaded - fast-forward: {(fastForwardEnabled ? updatesPerFrame + "x" : "disabled")}");
+            $"Module loaded - fast-forward: {(Settings.FastForwardEnabled ? Settings.UpdatesPerFrame + "x" : "disabled")}");
     }
 
     public override void Unload() {
@@ -87,7 +82,7 @@ public class CelesteGymModule : EverestModule {
 
     private static void OverrideMInputUpdate(On.Monocle.MInput.orig_Update orig){
         Level? level = Engine.Scene as Level;
-        if (level != null) {
+        if (level != null && !level.Paused) {
             // update cached action from Python
             // InputController.action = 4;//Instance.sharedMemory.ReadAction();
 
@@ -115,7 +110,7 @@ public class CelesteGymModule : EverestModule {
         
         // Determine how many updates to run this frame
         Level? level = Engine.Scene as Level;
-        int updates = (Instance.fastForwardEnabled && level != null && !level.Paused) ? Instance.updatesPerFrame : 1;
+        int updates = (Settings.FastForwardEnabled && level != null && !level.Paused) ? Settings.UpdatesPerFrame : 1;
         
         // Run multiple game updates per render frame
         for (int i = 0; i < updates; i++) {
@@ -131,7 +126,7 @@ public class CelesteGymModule : EverestModule {
                     $"Exception during update: {ex.Message}\n{ex.StackTrace}");
                 
                 // Disable fast-forward on error to allow debugging
-                Instance.fastForwardEnabled = false;
+                Settings.FastForwardEnabled = false;
                 break;
             }
         }
@@ -227,20 +222,6 @@ public class CelesteGymModule : EverestModule {
             }
         }
     }
-
-    /// <summary>
-    /// Enable or disable fast-forward mode.
-    /// </summary>
-    public void SetFastForward(bool enabled, int? speedup = null) {
-        fastForwardEnabled = enabled;
-        if (speedup.HasValue) {
-            updatesPerFrame = speedup.Value;
-        }
-        
-        Logger.Log(LogLevel.Info, "CelesteGym", 
-            $"Fast-forward: {(enabled ? updatesPerFrame + "x" : "disabled")}");
-    }
-
     /// <summary>
     /// Get current performance metrics.
     /// </summary>
