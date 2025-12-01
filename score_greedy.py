@@ -89,25 +89,46 @@ class FunctionApproxQLearning():
     def get_action(self,  big_state):
         state = ReducedGameState(big_state)
         if (random.random() < self.exploration_prob):
-            return random.randint(0, 127)
+            action = random.randint(0, 127)
+            self.print_action(action)
+            return action
         else:
             Q_vals = state.features @ self.weights
+            self.print_action(np.argmax(Q_vals))
             return np.argmax(Q_vals)
     
     def get_reward(self, state):
-        reward = (1538-state.pos_y) + (state.pos_x)
+        # reward = (1538-state.pos_y) + (state.pos_x)
+        # if state.state == 1:# if next to wall and climbing
+        #     reward += 50
+        # if state.on_ground == 1:
+        #     reward += 5
+        # if reward > self.max_score:
+        #     print(reward)
+        #     self.max_score = reward
+
+        # Test climbing
+        # reward = (1538-state.pos_y)
+        reward = 0
         if state.state == 1:# if next to wall and climbing
             reward += 50
-        if state.on_ground == 1:
-            reward += 5
-        if reward > self.max_score:
-            print(reward)
-            self.max_score = reward
-
         return reward
+
+    def print_action(self, action):
+        action_str = ""
+        if (action&0x01 != 0): action_str += "left "
+        if (action&0x02 != 0): action_str += "right "
+        if (action&0x04 != 0): action_str += "up "
+        if (action&0x08 != 0): action_str += "down "
+        if (action&0x10 != 0): action_str += "jump "
+        if (action&0x20 != 0): action_str += "dash "
+        if (action&0x40 != 0): action_str += "grab "
+        print(action_str)
+
 
     def incorporate_feedback(self, big_state, action, big_next_state):
         state = ReducedGameState(big_state)
+        print(state.state)
         next_state = ReducedGameState(big_next_state)
 
         Q_vals = state.features @ self.weights
