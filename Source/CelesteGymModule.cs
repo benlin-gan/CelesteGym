@@ -199,12 +199,10 @@ public class CelesteGymModule : EverestModule {
         Instance.currentState.Dashes = (byte)player.Dashes;
         Instance.currentState.OnGround = (byte)(player.OnGround() ? 1 : 0);
         Instance.currentState.Dead = (byte)(player.Dead ? 1 : 0);
-        /*Instance.currentState.WallSlideDir = (byte)(
-            player.WallSlideDir == -1 ? 255 :  // -1 as unsigned byte
-            player.WallSlideDir == 1 ? 1 : 0
-        );*/
         Instance.currentState.Facing = (byte)(player.Facing == Facings.Left ? 255 : 1);
         
+        Instance.currentState.State = (byte)player.StateMachine.State;
+
         // Frame counter
         Instance.currentState.FrameCount++;
         
