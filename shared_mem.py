@@ -333,4 +333,4 @@ def test_connection(duration_sec: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_connection(duration_sec=60)
+    test_connection(duration_sec=60.0)

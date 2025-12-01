@@ -53,6 +53,8 @@ public class CelesteGymModule : EverestModule {
             return;
         }
         
+        fastForwardEnabled = Settings.FastForwardEnabled;
+        updatesPerFrame = Settings.UpdatesPerFrame; 
         // Hook Celeste.Update to run multiple times per render frame
         // This is how we achieve speedup without breaking physics
         On.Celeste.Celeste.Update += FastForwardUpdate;
@@ -65,7 +67,8 @@ public class CelesteGymModule : EverestModule {
             
         // Hook level load for initialization
         Everest.Events.Level.OnLoadLevel += OnLoadLevel;
-        
+
+
         Logger.Log(LogLevel.Info, "CelesteGym", 
             $"Module loaded - fast-forward: {(fastForwardEnabled ? updatesPerFrame + "x" : "disabled")}");
     }
@@ -87,12 +90,13 @@ public class CelesteGymModule : EverestModule {
         if (level != null) {
             // update cached action from Python
             // InputController.action = 4;//Instance.sharedMemory.ReadAction();
+
             InputController.action = Instance.sharedMemory.ReadAction();
             // Now propagate to virtual buttons
             orig();
             InputController.ApplyAction();
             MInput.UpdateVirtualInputs();  // ← Need reflection to call this
-
+            
             Logger.Log(LogLevel.Info, "CelesteGym",  $"After update - Jump pressed: {Input.Jump.Pressed}");
         }else{
             orig();
@@ -131,7 +135,13 @@ public class CelesteGymModule : EverestModule {
                 break;
             }
         }
-        
+        if (Settings.StateLoggingInterval > 0 && 
+        Instance.currentState.FrameCount % Settings.StateLoggingInterval == 0) {
+            Logger.Log(LogLevel.Verbose, "CelesteGym", 
+                $"Frame {Instance.currentState.FrameCount}: " +
+                $"Pos=({Instance.currentState.PosX:F1}, {Instance.currentState.PosY:F1}) " +
+                $"Action={InputController.action}");
+        }
         // Periodic performance logging
         if (Instance.renderFrameCount % 600 == 0) {  // Every 10 seconds at 60fps
             float actualSpeedup = Instance.updateCount / (float)Instance.renderFrameCount;
