@@ -294,7 +294,7 @@ def test_connection(duration_sec: float = 5.0):
     start_time = time.time()
     frame_count = 0
     last_frame = -1
-    sleep_time = 0.016
+    sleep_time = 0.001
 
     # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
     func_approx = FunctionApproxQLearning()
