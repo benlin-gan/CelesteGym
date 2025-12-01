@@ -184,14 +184,14 @@ class SharedMemoryBridge:
             return None
         
         try:
-            # Spin wait for Celeste to simulate frame
-            while self.shm[self.ACTION_READY_OFFSET] == 1:
-                pass 
             # Read current write index
             self.shm.seek(self.WRITE_INDEX_OFFSET)
             write_idx = struct.unpack('=I', self.shm.read(4))[0]
             
-            # Use the buffer signaled by C++ to use.
+            # Use the buffer signaled by C# to use.
+            # Buffer selection logic is NOT backwards.
+            # C# updates the buffer index after it finishes writing in said buffer!
+            # Doing it the other way around "Write-After-Publish" is a race condition.   
             buffer_offset = self.BUFFER_B_OFFSET if (write_idx % 2 == 0) else self.BUFFER_A_OFFSET
             
             # Read from stable buffer
@@ -232,6 +232,10 @@ class SharedMemoryBridge:
 
             self.shm.seek(self.ACTION_READY_OFFSET)
             self.shm.write(struct.pack('B', 1))
+
+            # Spin wait for Celeste to simulate frame 
+            while self.shm[self.ACTION_READY_OFFSET] == 1:
+                pass 
             
             return True
             
