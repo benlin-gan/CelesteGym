@@ -89,7 +89,7 @@ public class CelesteGymModule : EverestModule {
             // Now propagate to virtual buttons
             orig();
             InputController.ApplyAction();
-            MInput.UpdateVirtualInputs();  // ← Need reflection to call this
+            MInput.UpdateVirtualInputs(); 
             
             Logger.Log(LogLevel.Info, "CelesteGym",  $"After update - Jump pressed: {Input.Jump.Pressed}");
         }else{
@@ -225,6 +225,7 @@ public class CelesteGymModule : EverestModule {
         Instance.currentState.Facing = (byte)(player.Facing == Facings.Left ? 255 : 1);
         
         Instance.currentState.State = (byte)player.StateMachine.State;
+        //Logger.Log(LogLevel.Info, "CelesteGym", $"");
 
         // Frame counter
         Instance.currentState.FrameCount++;
