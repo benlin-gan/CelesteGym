@@ -85,7 +85,7 @@ public class CelesteGymModule : EverestModule {
         Level? level = Engine.Scene as Level;
         if (level != null && !level.Paused) {
 
-            InputController.action = Instance.sharedMemory.ReadAction();
+            // InputController.action = Instance.sharedMemory.ReadAction();
             // Now propagate to virtual buttons
             orig();
             InputController.ApplyAction();

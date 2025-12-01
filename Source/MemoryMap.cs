@@ -91,7 +91,8 @@ public class SharedMemoryBridge : IDisposable {
         }
         
         try {
-            writeIndex++; //modify local copy only, python still sees unincremented index in shared memory
+            writeIndex++; 
+            //modify local copy only, python still sees unincremented index in shared memory
             int bufferOffset = (writeIndex % 2 == 0) ? BUFFER_B_OFFSET : BUFFER_A_OFFSET;
             
             // Write state to the reserved buffer

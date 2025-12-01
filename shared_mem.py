@@ -184,14 +184,15 @@ class SharedMemoryBridge:
             return None
         
         try:
+            # Spin wait for Celeste to simulate frame
+            while self.shm[ACTION_READY_OFFSET] == 1:
+                pass 
             # Read current write index
             self.shm.seek(self.WRITE_INDEX_OFFSET)
             write_idx = struct.unpack('=I', self.shm.read(4))[0]
             
-            # Choose stable buffer (opposite of what C# is writing to)
-            # If write_idx is odd, C# writes to A (offset 0), so read from B (offset 1056)
-            # If write_idx is even, C# writes to B (offset 1056), so read from A (offset 0)
-            buffer_offset = self.BUFFER_B_OFFSET if (write_idx % 2 == 1) else self.BUFFER_A_OFFSET
+            # Use the buffer signaled by C++ to use.
+            buffer_offset = self.BUFFER_B_OFFSET if (write_idx % 2 == 0) else self.BUFFER_A_OFFSET
             
             # Read from stable buffer
             self.shm.seek(buffer_offset)
