@@ -37,7 +37,8 @@ public static class InputController {
         
         // Build thumbstick state (movement)
         float x = left ? -1.0f : (right ? 1.0f : 0.0f);
-        float y = 0.0f; // No up/down on left stick in Celeste
+        float y = down ? -1.0f : (up ? 1.0f : 0.0f); // No up/down on left stick in Celeste
+        
         var sticks = new GamePadThumbSticks(
             new Vector2(x, y),  // Left stick
             Vector2.Zero        // Right stick (unused)
@@ -52,13 +53,24 @@ public static class InputController {
         
         // Build trigger state (grab uses right trigger)
         var triggers = new GamePadTriggers(0.0f, grab ? 1.0f : 0.0f);
+        /*
+        // Build D-Pad state (up/down for climbing/looking)
+        ButtonState upState = up ? ButtonState.Pressed : ButtonState.Released;
+        ButtonState downState = down ? ButtonState.Pressed : ButtonState.Released;
         
+        var dpad = new GamePadDPad(
+            upState,
+            downState, 
+            ButtonState.Released,  // Left
+            ButtonState.Released   // Right
+        );*/
+
         // Create new gamepad state
         var newState = new GamePadState(
             sticks, 
             triggers, 
             buttonState, 
-            new GamePadDPad()  // D-pad unused
+            new GamePadDPad()
         );
         
         // Inject the state
