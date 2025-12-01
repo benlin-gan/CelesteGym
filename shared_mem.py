@@ -16,7 +16,7 @@ import time
 from typing import Optional, Tuple
 import numpy as np
 import random
-from score_greedy import Greedy_learning
+from score_greedy import Greedy_learning, FunctionApproxQLearning
 
 class GameState:
     """
@@ -220,7 +220,8 @@ class SharedMemoryBridge:
         
         try:
             # Validate action
-            if not (0 <= action <= 127):
+            # print(action)
+            if not (0 <= action and action <= 127):
                 print(f"Warning: Invalid action {action}, clamping to [0, 14]")
                 action = max(0, min(127, action))
             
@@ -288,15 +289,17 @@ def test_connection(duration_sec: float = 5.0):
     start_time = time.time()
     frame_count = 0
     last_frame = -1
-    sleep_time = 0.01
+    sleep_time = 0.016
 
-    greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
+    # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
+    func_approx = FunctionApproxQLearning()
     
     try:
         while time.time() - start_time < duration_sec:
             # get action
             prev_state = bridge.read_state()
-            action = greedy_learning.generate_action(prev_state)
+            # action = greedy_learning.generate_action(prev_state)
+            action = func_approx.get_action(prev_state)
             
             bridge.write_action(action)
             # get state
@@ -304,7 +307,8 @@ def test_connection(duration_sec: float = 5.0):
             
             if state is not None:
                 # get score
-                greedy_learning.compute_score(prev_state, action, state)
+                # greedy_learning.compute_score(prev_state, action, state)
+                func_approx.incorporate_feedback(prev_state, action, state)
                 frame_count += 1
                 
                 # Check for frame updates
@@ -313,13 +317,13 @@ def test_connection(duration_sec: float = 5.0):
                     
                     # Print every 60 frames (~1 sec at normal speed)
                     if frame_count % 60 == 0:
-                        print(f"Frame {state.frame_count}: {state}")
+                        # print(f"Frame {state.frame_count}: {state}")
                         
                         # Show grid preview (center 8x8)
                         grid_center = state.local_grid[12:20, 12:20]
-                        print("Grid center:")
-                        for row in grid_center:
-                            print(''.join(['#' if cell == 1 else '.' for cell in row]))
+                        # print("Grid center:")
+                        # for row in grid_center:
+                        #     print(''.join(['#' if cell == 1 else '.' for cell in row]))
             
             time.sleep(sleep_time)  # 100 Hz polling
         bridge.write_action(0)
@@ -337,4 +341,4 @@ def test_connection(duration_sec: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_connection(duration_sec=60.0)
+    test_connection(duration_sec=300.0)
