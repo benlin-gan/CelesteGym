@@ -75,6 +75,7 @@ class SharedMemoryBridge:
     BUFFER_B_OFFSET = 1056
     WRITE_INDEX_OFFSET = 2112
     ACTION_OFFSET = 2116
+    ACTION_READY_OFFSET = 2118
     TOTAL_SIZE = 2120
     
     SHARED_MEMORY_NAME = "CelesteGymSharedMemory"
@@ -226,6 +227,9 @@ class SharedMemoryBridge:
             # Write action (ushort = 2 bytes)
             self.shm.seek(self.ACTION_OFFSET)
             self.shm.write(struct.pack('=H', action))
+
+            self.shm.seek(self.ACTION_READY_OFFSET)
+            self.shm.write(struct.pack('B', 1))
             
             return True
             

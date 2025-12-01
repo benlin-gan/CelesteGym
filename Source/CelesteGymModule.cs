@@ -31,6 +31,7 @@ public class CelesteGymModule : EverestModule {
     private GameState currentState;
     private uint updateCount = 0;
     private uint renderFrameCount = 0;
+    private int skippedUpdates = 0;
     
     
     public CelesteGymModule() {
@@ -83,8 +84,6 @@ public class CelesteGymModule : EverestModule {
     private static void OverrideMInputUpdate(On.Monocle.MInput.orig_Update orig){
         Level? level = Engine.Scene as Level;
         if (level != null && !level.Paused) {
-            // update cached action from Python
-            // InputController.action = 4;//Instance.sharedMemory.ReadAction();
 
             InputController.action = Instance.sharedMemory.ReadAction();
             // Now propagate to virtual buttons
@@ -108,41 +107,65 @@ public class CelesteGymModule : EverestModule {
     ) {
         Instance.renderFrameCount++;
         
-        // Determine how many updates to run this frame
         Level? level = Engine.Scene as Level;
-        int updates = (Settings.FastForwardEnabled && level != null && !level.Paused) ? Settings.UpdatesPerFrame : 1;
         
-        // Run multiple game updates per render frame
-        for (int i = 0; i < updates; i++) {
-            try {
-                // Call original Update with normal delta time
-                // TimeRate remains 1.0, so physics runs correctly
-                orig(self, gameTime);
-                
-                // OnLevelUpdate will be called during orig() if in a level
-                
-            } catch (Exception ex) {
-                Logger.Log(LogLevel.Error, "CelesteGym", 
-                    $"Exception during update: {ex.Message}\n{ex.StackTrace}");
-                
-                // Disable fast-forward on error to allow debugging
-                Settings.FastForwardEnabled = false;
-                break;
+        if (level == null || level.Paused || !Settings.FastForwardEnabled) {
+            orig(self, gameTime);
+            return;
+        }
+        
+        // Even spacing across 16.67ms frame
+        const double FRAME_TIME_MS = 16.67;
+        double timePerUpdateSlot = FRAME_TIME_MS / Settings.UpdatesPerFrame;  // ~41.67μs
+        
+        var frameStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        double ticksPerMs = System.Diagnostics.Stopwatch.Frequency / 1000.0;
+        
+        int updatesExecuted = 0;
+        
+        for (int i = 0; i < Settings.UpdatesPerFrame; i++) {
+            // Wait for this update slot's scheduled time
+            double targetTimeMs = i * timePerUpdateSlot;
+            
+            while (true) {
+                double elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - frameStart) / ticksPerMs;
+                if (elapsedMs >= targetTimeMs) break;
+                System.Threading.Thread.SpinWait(10);
             }
+            
+            // Check if Python has provided a NEW action
+            if (Instance.sharedMemory.HasNewAction()) {
+                // Consume the action (clears ActionReady flag)
+                InputController.action = Instance.sharedMemory.ReadActionAndConsume();
+                
+                try {
+                    // Execute exactly ONE update for this action
+                    orig(self, gameTime);
+                    updatesExecuted++;
+                    // OnLevelUpdate writes state during orig()
+                    
+                } catch (Exception ex) {
+                    Logger.Log(LogLevel.Error, "CelesteGym", 
+                        $"Exception during update: {ex.Message}\n{ex.StackTrace}");
+                    Settings.FastForwardEnabled = false;
+                    break;
+                }
+            }
+            // else: skip this slot, Python hasn't provided new action yet
         }
-        if (Settings.StateLoggingInterval > 0 && 
-        Instance.currentState.FrameCount % Settings.StateLoggingInterval == 0) {
-            Logger.Log(LogLevel.Verbose, "CelesteGym", 
-                $"Frame {Instance.currentState.FrameCount}: " +
-                $"Pos=({Instance.currentState.PosX:F1}, {Instance.currentState.PosY:F1}) " +
-                $"Action={InputController.action}");
-        }
-        // Periodic performance logging
-        if (Instance.renderFrameCount % 600 == 0) {  // Every 10 seconds at 60fps
+        
+        Instance.skippedUpdates += (Settings.UpdatesPerFrame - updatesExecuted);
+        
+        if (Instance.renderFrameCount % 600 == 0) {
             float actualSpeedup = Instance.updateCount / (float)Instance.renderFrameCount;
+            float skipRate = Instance.skippedUpdates / (float)(Instance.updateCount + Instance.skippedUpdates) * 100;
+            
             Logger.Log(LogLevel.Info, "CelesteGym", 
-                $"Performance: {actualSpeedup:F1}x speedup " +
-                $"({Instance.updateCount} updates / {Instance.renderFrameCount} frames)");
+                $"Performance: {actualSpeedup:F1}x speedup, Skip rate: {skipRate:F1}%");
+            
+            Instance.updateCount = 0;
+            Instance.renderFrameCount = 0;
+            Instance.skippedUpdates = 0;
         }
     }
 

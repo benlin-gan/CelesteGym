@@ -26,6 +26,7 @@ public class SharedMemoryBridge : IDisposable {
     private const int BUFFER_B_OFFSET = 1056;
     private const int WRITE_INDEX_OFFSET = 2112;
     private const int ACTION_OFFSET = 2116;
+    private const int ACTION_READY_OFFSET = 2118;
     private const int TOTAL_SIZE = 2120;
     
     private const string SHARED_MEMORY_NAME = "CelesteGymSharedMemory";
@@ -159,6 +160,47 @@ public class SharedMemoryBridge : IDisposable {
             mmf = null;
             
             Logger.Log(LogLevel.Info, "CelesteGym", "Shared memory disposed");
+        }
+    }
+    /// <summary>
+    /// Check if Python has provided a new action.
+    /// </summary>
+    public bool HasNewAction() {
+        if (accessor == null || disposed) {
+            return false;
+        }
+        
+        try {
+            return accessor.ReadByte(ACTION_READY_OFFSET) == 1;
+        } catch (Exception ex) {
+            Logger.Log(LogLevel.Error, "CelesteGym", 
+                $"Error checking action ready: {ex.Message}");
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Read and consume the action from Python.
+    /// Automatically clears the ActionReady flag.
+    /// </summary>
+    public ushort ReadActionAndConsume() {
+        if (accessor == null || disposed) {
+            return currentAction;
+        }
+        
+        try {
+            // Read action
+            currentAction = accessor.ReadUInt16(ACTION_OFFSET);
+            
+            // Clear ready flag (consume it)
+            accessor.Write(ACTION_READY_OFFSET, (byte)0);
+            
+            return currentAction;
+            
+        } catch (Exception ex) {
+            Logger.Log(LogLevel.Error, "CelesteGym", 
+                $"Error reading action: {ex.Message}");
+            return currentAction;
         }
     }
 }
