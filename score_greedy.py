@@ -63,56 +63,109 @@ class ReducedGameState:
 
         self.features = np.concatenate([
             self.pos_freqs.ravel(),
-            [self.dashes,
-            self.on_ground,
-            self.wall_slide_dir,
-            self.state,
-            self.dead,
-            self.can_dash],
+            [
+                self.dashes,
+                self.on_ground,
+                self.wall_slide_dir,
+                self.state,
+                self.dead,
+                self.can_dash
+            ],
             self.local_grid.ravel()
         ])
         # print("***FEATURE LEN***", len(self.features)) 
         # 1054
 
+import json
 class FunctionApproxQLearning():
-    def __init__(self, discount=0.95, exploration_prob=0.2):
+    def __init__(self, discount=0.95, exploration_prob=0.01):
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
         self.weights = np.random.standard_normal(size=(1054, 128))
         self.max_score = float("-inf") # for debugging
+        self.actions = [] # for saving
+        self.running_max = float("-inf")
 
     def get_q(self, state, action):
         Q_vals = state.features @ self.weights
         return Q_vals[action]
 
     def get_action(self,  big_state):
+        if (big_state.state == 13 or big_state.state == 14):
+            return 0
+        
+        # self.print_action(0x45)
+        # return 0x45
         state = ReducedGameState(big_state)
         if (random.random() < self.exploration_prob):
             action = random.randint(0, 127)
-            self.print_action(action)
+            # self.print_action(action)
+            if (action&0x01 != 0) and (action&0x02 !=0):
+                # print(action, end="->")
+                action -= 0x01
+                # print(action)
+            if (action&0x04 != 0) and (action&0x08 !=0):
+                # print(action, end="->")
+                action -= 0x08
+                # print(action)
+            if state.dashes == 0:
+                action &= 0x5F
+            # self.print_action(action)
+            self.save_action(action)
             return action
         else:
             Q_vals = state.features @ self.weights
-            self.print_action(np.argmax(Q_vals))
-            return np.argmax(Q_vals)
+            action = np.argmax(Q_vals)
+            # self.print_action(np.argmax(Q_vals))
+            self.save_action(action)
+            return action
     
     def get_reward(self, state):
-        # reward = (1538-state.pos_y) + (state.pos_x)
-        # if state.state == 1:# if next to wall and climbing
-        #     reward += 50
-        # if state.on_ground == 1:
-        #     reward += 5
-        # if reward > self.max_score:
-        #     print(reward)
-        #     self.max_score = reward
+        reward = (1538-state.pos_y) + (state.pos_x)*2
+        if state.state == 1:# if next to wall and climbing
+            reward += 10
+        if state.on_ground == 1:
+            reward += 5
+        if reward > self.max_score:
+            print(reward)
+            self.max_score = reward
 
         # Test climbing
         # reward = (1538-state.pos_y)
-        reward = 0
-        if state.state == 1:# if next to wall and climbing
-            reward += 50
+        # reward = 0
+        # if state.state == 1:# if next to wall and climbing
+        #     reward += 1000
+        #     print(reward)
+        #     # input("Breakpoint")
         return reward
+
+    def save_action(self, action): # for debugging, print back
+        self.actions.append(int(action))
+
+    def save_actions(self):
+        if self.running_max > .93*self.max_score:
+            data_record = {
+                'reward': int(self.running_max),
+                'actions': self.actions
+            }
+
+            json_string = json.dumps(data_record, separators=(',', ':'))
+
+            with open("best_actions.json", 'a') as f:
+                f.write(json_string + '\n')
+
+            self.actions = []
+            if self.running_max > self.max_score:
+                self.max_score = self.running_max
+            self.running_max = 0
+    
+    def save_weights(self):
+        # json_string = json.dumps(self.weights)
+        # print(self.weights)
+        # with open("weights.json", 'w') as f:
+        #     json.dump(self.weights, f, indent=4)
+        np.save('weights.npy', self.weights)
 
     def print_action(self, action):
         action_str = ""
@@ -128,14 +181,20 @@ class FunctionApproxQLearning():
 
     def incorporate_feedback(self, big_state, action, big_next_state):
         state = ReducedGameState(big_state)
-        print(state.state)
+        # print(state.state)
         next_state = ReducedGameState(big_next_state)
 
         Q_vals = state.features @ self.weights
         Q_vals_next = next_state.features @ self.weights
 
         reward = self.get_reward(state)
+        if reward > self.running_max:
+            self.running_max = reward
         # reward_next = get_reward(next_state)
+        
+        if (next_state.state == 13 or next_state.state == 14) and self.actions != []:
+            # input("Breakpoint")
+            self.save_actions()
 
         max_future_Q = np.max(Q_vals_next)
         target = reward + self.discount * (max_future_Q - reward)
