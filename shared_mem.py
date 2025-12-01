@@ -16,6 +16,7 @@ import time
 from typing import Optional, Tuple
 import numpy as np
 import random
+from score_greedy import Greedy_learning
 
 class GameState:
     """
@@ -283,14 +284,23 @@ def test_connection(duration_sec: float = 5.0):
     start_time = time.time()
     frame_count = 0
     last_frame = -1
+    sleep_time = 0.01
+
+    greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
     
     try:
         while time.time() - start_time < duration_sec:
-            action = random.randint(0, 127)
+            # get action
+            prev_state = bridge.read_state()
+            action = greedy_learning.generate_action(prev_state)
+            
             bridge.write_action(action)
+            # get state
             state = bridge.read_state()
             
             if state is not None:
+                # get score
+                greedy_learning.compute_score(prev_state, action, state)
                 frame_count += 1
                 
                 # Check for frame updates
@@ -307,7 +317,7 @@ def test_connection(duration_sec: float = 5.0):
                         for row in grid_center:
                             print(''.join(['#' if cell == 1 else '.' for cell in row]))
             
-            time.sleep(0.01)  # 100 Hz polling
+            time.sleep(sleep_time)  # 100 Hz polling
         bridge.write_action(0)
     
     except KeyboardInterrupt:
