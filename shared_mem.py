@@ -84,6 +84,7 @@ class SharedMemoryBridge:
         self.shm: Optional[mmap.mmap] = None
         self.last_write_index = 0
         self._opened = False
+        self._perfs = []
     
     def open(self, timeout_sec: float = 5.0) -> bool:
         """
@@ -226,6 +227,10 @@ class SharedMemoryBridge:
                 print(f"Warning: Invalid action {action}, clamping to [0, 14]")
                 action = max(0, min(127, action))
             
+            # Spin wait for Celeste to simulate frame 
+            while self.shm[self.ACTION_READY_OFFSET] == 1:
+                pass
+
             # Write action (ushort = 2 bytes)
             self.shm.seek(self.ACTION_OFFSET)
             self.shm.write(struct.pack('=H', action))
@@ -233,9 +238,14 @@ class SharedMemoryBridge:
             self.shm.seek(self.ACTION_READY_OFFSET)
             self.shm.write(struct.pack('B', 1))
 
-            # Spin wait for Celeste to simulate frame 
-            while self.shm[self.ACTION_READY_OFFSET] == 1:
-                pass 
+            #t = time.perf_counter_ns()
+
+                #time.sleep(0.001)
+            #t2 = time.perf_counter_ns()
+            #self._perfs.append((t2 - t) / 1000.0)
+            #if len(self._perfs) > 200:
+             #   print(sum(self._perfs) / len(self._perfs), "nanosecond spins on average")
+             #   self._perfs = self._perfs[100:]
             
             return True
             

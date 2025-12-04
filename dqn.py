@@ -6,37 +6,39 @@ import random
 import numpy as np
 from matplotlib import pyplot as plt
 from shared_mem import SharedMemoryBridge
+
+import time
 # Minimal state
 class MinimalState:
     def __init__(self, big_state):
-        self.grid = big_state.local_grid  # 32×32
+        self.grid = big_state.local_grid[8:24, 8:24]  # 16×16
         self.vel_x = big_state.vel_x / 100.0
         self.vel_y = big_state.vel_y / 100.0
         self.dashes = big_state.dashes / 2.0
         self.state = big_state.state  # KEEP THIS for now (to debug reward)
 
-# Simple reward (from your friend's code)
-def get_reward(state):
-    if state.state == 1:  # Climbing
-        return 1.0  # Simplified from 50
-    return 0.0
+    # Simple reward 
+    def reward(self):
+        if self.state == 0: #StNormal
+            return 1.0 
+        return 0.0
 
 # Minimal DQN
 class ClimbingDQN(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=4, stride=2),  # 32→15
+            nn.Conv2d(1, 32, kernel_size=3, stride=2),  # 16->7
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2), # 15→6
+            nn.Conv2d(32, 64, kernel_size=3, stride=1), # 7->5
             nn.ReLU(),
-            nn.Flatten()  # 64×6×6 = 2304
+            nn.Flatten()  # 64×5×5 = 1600
         )
         
         self.fc = nn.Sequential(
-            nn.Linear(2304 + 4, 128),  # +4 for [vel_x, vel_y, dashes, state]
+            nn.Linear(1600 + 4, 8),  # +4 for [vel_x, vel_y, dashes, state]
             nn.ReLU(),
-            nn.Linear(128, 128)  # 128 actions
+            nn.Linear(8, 2)  # 128 actions
         )
     
     def forward(self, grid, other):
@@ -97,13 +99,15 @@ def train_climbing():
         climbing_steps = 0
         total_steps = 0
         
+        qsave = None
         for step in range(500):  # Max 500 steps per episode
+
             # Convert state
             min_state = MinimalState(state)
             
             # Epsilon-greedy action selection
             if random.random() < epsilon:
-                action = random.randint(0, 127)
+                action = random.randint(0, 1)
             else:
                 with torch.no_grad():
                     grid = torch.tensor(min_state.grid, dtype=torch.float32).unsqueeze(0)
@@ -115,16 +119,22 @@ def train_climbing():
                     ], dtype=torch.float32).unsqueeze(0)
                     
                     q_values = q_network(grid, other)
+                    qsave = q_values
                     action = q_values.argmax(dim=1).item()
             
             # Take action
             bridge.write_action(action)
             next_state = bridge.read_state()
-            
 
-            # Compute reward
-            reward = 1.0 if min_state.state == 1 else 0.0
-            done = next_state.dead
+            #skip respawn states
+            reward = 0
+            done = False
+            while next_state.state == 14:
+                reward = -1
+                done=True
+                bridge.write_action(0)
+                next_state = bridge.read_state()
+
             
             # Track metrics
             episode_reward += reward
@@ -143,20 +153,29 @@ def train_climbing():
                                        next_min_state.dashes, next_min_state.state / 30.0]),
                 done
             )
-            
-            # Train
-            if len(replay_buffer) > batch_size:
-                train_step(q_network, target_network, replay_buffer, 
-                          optimizer, batch_size, gamma)
-            
-            # Update target network
-            step_count += 1
-            if step_count % target_update_freq == 0:
-                target_network.load_state_dict(q_network.state_dict())
-            
+            #print(f"Step {step}: state_id={state.state}, action={action}, reward={reward}, done={done}")
             state = next_state
             if done:
+                print(f"ending episode early at step {step}")
                 break
+        #return
+        print(qsave)
+        # Train
+        if episode % 10 == 9 and len(replay_buffer) > batch_size:
+            print("starting training")
+            for ts in range(250):
+                if ts % 10 == 0:
+                    print(f"on step {ts}")
+                train_step(q_network, target_network, replay_buffer, 
+                        optimizer, batch_size, gamma)
+            print("finished training")
+        
+        # Update target network
+        step_count += 1
+        if step_count % target_update_freq == 0:
+            target_network.load_state_dict(q_network.state_dict())
+        
+        state = next_state
         
         # Episode complete
         episode += 1
@@ -209,7 +228,7 @@ def train_step(q_network, target_network, replay_buffer, optimizer, batch_size, 
         next_q_values = target_network(next_grids, next_others)
         max_next_q = next_q_values.max(dim=1)[0]
         targets = rewards + gamma * max_next_q * (1 - dones)
-    
+        #print(rewards)
     # Loss and update
     loss = nn.MSELoss()(q_values, targets)
     

@@ -24,12 +24,14 @@ public static class InputController {
     public static void ApplyAction() {
         // Decode action bits
         //Logger.Log(LogLevel.Info, "CelesteGym", $"ApplyAction called: {action}");
-        bool left = (action & 0x01) != 0;
-        bool right = (action & 0x02) != 0;
-        bool up = (action & 0x04) != 0;
-        bool down = (action & 0x08) != 0;        
-        bool jump = (action & 0x10) != 0;
-        bool dash = (action & 0x20) != 0;
+        bool up = (action & 0x01) != 0;
+        bool dash = (action & 0x02) != 0;
+        bool down = (action & 0x04) != 0;
+        //bool left = (action & 0x08) != 0;     
+        bool left = (action == 0); 
+        bool right = (action == 1);  
+        //bool right = (action & 0x10) != 0;
+        bool jump = (action & 0x20) != 0;
         bool grab = (action & 0x40) != 0;
         
         // Find or create active gamepad

@@ -183,6 +183,7 @@ public class SharedMemoryBridge : IDisposable {
     /// <summary>
     /// Read and consume the action from Python.
     /// Automatically clears the ActionReady flag.
+    /// Blocks until action arrives.
     /// </summary>
     public ushort ReadActionAndConsume() {
         if (accessor == null || disposed) {
@@ -190,6 +191,9 @@ public class SharedMemoryBridge : IDisposable {
         }
         
         try {
+            while(accessor.ReadByte(ACTION_READY_OFFSET) != 1){
+                Thread.SpinWait(10);
+            }
             // Read action
             currentAction = accessor.ReadUInt16(ACTION_OFFSET);
             

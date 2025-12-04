@@ -114,44 +114,29 @@ public class CelesteGymModule : EverestModule {
             return;
         }
         
-        // Even spacing across 16.67ms frame
-        const double FRAME_TIME_MS = 16.67;
-        double timePerUpdateSlot = FRAME_TIME_MS / Settings.UpdatesPerFrame;  // ~41.67μs
-        
-        var frameStart = System.Diagnostics.Stopwatch.GetTimestamp();
-        double ticksPerMs = System.Diagnostics.Stopwatch.Frequency / 1000.0;
+        //const double FRAME_TIME_MS = 16.67;
+        //const double frequency = System.Diagnostics.Stopwatch.Frequency;
+        //Future idea: add deadline to force render the frame.
+        //var deadline = System.Diagnostics.Stopwatch.GetTimestamp() ;
         
         int updatesExecuted = 0;
         
         for (int i = 0; i < Settings.UpdatesPerFrame; i++) {
-            // Wait for this update slot's scheduled time
-            double targetTimeMs = i * timePerUpdateSlot;
+            //Block until action arrives
+            InputController.action = Instance.sharedMemory.ReadActionAndConsume();
             
-            while (true) {
-                double elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - frameStart) / ticksPerMs;
-                if (elapsedMs >= targetTimeMs) break;
-                System.Threading.Thread.SpinWait(10);
-            }
-            
-            // Check if Python has provided a NEW action
-            if (Instance.sharedMemory.HasNewAction()) {
-                // Consume the action (clears ActionReady flag)
-                InputController.action = Instance.sharedMemory.ReadActionAndConsume();
+            try {
+                // Execute exactly ONE update for this action
+                orig(self, gameTime);
+                updatesExecuted++;
+                // OnLevelUpdate writes state during orig()
                 
-                try {
-                    // Execute exactly ONE update for this action
-                    orig(self, gameTime);
-                    updatesExecuted++;
-                    // OnLevelUpdate writes state during orig()
-                    
-                } catch (Exception ex) {
-                    Logger.Log(LogLevel.Error, "CelesteGym", 
-                        $"Exception during update: {ex.Message}\n{ex.StackTrace}");
-                    Settings.FastForwardEnabled = false;
-                    break;
-                }
+            } catch (Exception ex) {
+                Logger.Log(LogLevel.Error, "CelesteGym", 
+                    $"Exception during update: {ex.Message}\n{ex.StackTrace}");
+                Settings.FastForwardEnabled = false;
+                break;
             }
-            // else: skip this slot, Python hasn't provided new action yet
         }
         
         Instance.skippedUpdates += (Settings.UpdatesPerFrame - updatesExecuted);
@@ -176,8 +161,8 @@ public class CelesteGymModule : EverestModule {
         // Reset frame counters for this episode
         Instance.currentState.FrameCount = 0;
         
-        Logger.Log(LogLevel.Info, "CelesteGym", 
-            $"Level loaded: {level.Session.Level}");
+        //Logger.Log(LogLevel.Info, "CelesteGym", 
+        //    $"Level loaded: {level.Session.Level}");
     }
     
     /// <summary>
