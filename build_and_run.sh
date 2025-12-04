@@ -1,4 +1,4 @@
-CELESTE_ROOT=../../..
+CELESTE_ROOT=../..
 # pkill Celeste
 taskkill /IM Celeste.exe
 dotnet build
