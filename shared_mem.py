@@ -85,6 +85,7 @@ class SharedMemoryBridge:
         self.last_write_index = 0
         self._opened = False
         self._perfs = []
+        self._perfs = []
     
     def open(self, timeout_sec: float = 5.0) -> bool:
         """
@@ -227,31 +228,35 @@ class SharedMemoryBridge:
                 print(f"Warning: Invalid action {action}, clamping to [0, 14]")
                 action = max(0, min(127, action))
             
-            # Spin wait for Celeste to simulate frame 
-            while self.shm[self.ACTION_READY_OFFSET] == 1:
-                pass
+
 
             # Write action (ushort = 2 bytes)
             self.shm.seek(self.ACTION_OFFSET)
             self.shm.write(struct.pack('=H', action))
 
+            #unpause C#
             self.shm.seek(self.ACTION_READY_OFFSET)
             self.shm.write(struct.pack('B', 1))
-
-            #t = time.perf_counter_ns()
-
-                #time.sleep(0.001)
-            #t2 = time.perf_counter_ns()
-            #self._perfs.append((t2 - t) / 1000.0)
-            #if len(self._perfs) > 200:
-             #   print(sum(self._perfs) / len(self._perfs), "nanosecond spins on average")
-             #   self._perfs = self._perfs[100:]
             
             return True
             
         except Exception as e:
             print(f"Error writing action: {e}")
             return False
+
+    def step(self, policy, update):
+        """
+            generate an action using policy. Then call update()
+        """
+        # Spin wait while Celeste simulates frame 
+        while self.shm[self.ACTION_READY_OFFSET] == 1:
+            pass
+        state = self.read_state()
+        action = 0
+        if state is not None:
+            action = policy(state)
+        self.write_action(action)
+        update()
     
     def get_write_index(self) -> int:
         """Get current write index (for debugging)."""
@@ -283,15 +288,13 @@ class SharedMemoryBridge:
         self.close()
 
 
-# Test utilities
-def test_connection(duration_sec: float = 5.0):
+def test_algorithm(duration_sec: float = 5.0):
     """
-    Test shared memory connection by reading states continuously.
+    Execute a DMU algorithm
     
     Args:
         duration_sec: How long to run the test
     """
-    print("Testing shared memory connection...")
     
     bridge = SharedMemoryBridge()
     
@@ -299,11 +302,8 @@ def test_connection(duration_sec: float = 5.0):
         print("Failed to open shared memory!")
         return
     
-    print(f"Reading states for {duration_sec} seconds...")
-    
     start_time = time.time()
     frame_count = 0
-    last_frame = -1
     sleep_time = 0.0001
 
     # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
@@ -311,37 +311,11 @@ def test_connection(duration_sec: float = 5.0):
     
     try:
         while time.time() - start_time < duration_sec:
-            # get action
-            prev_state = bridge.read_state()
-            # action = greedy_learning.generate_action(prev_state)
-            action = func_approx.get_action(prev_state)
+            bridge.step(policy=func_approx.get_action, update=func_approx.incorporate_feedback)            
+            frame_count += 1
+            time.sleep(sleep_time)  # 10000 Hz polling
             
-            bridge.write_action(action)
-            # get state
-            time.sleep(sleep_time)  # 100 Hz polling
-
-            state = bridge.read_state()
-            
-            if state is not None:
-                # get score
-                # greedy_learning.compute_score(prev_state, action, state)
-                func_approx.incorporate_feedback(prev_state, action, state)
-                frame_count += 1
                 
-                # Check for frame updates
-                if state.frame_count != last_frame:
-                    last_frame = state.frame_count
-                    
-                    # Print every 60 frames (~1 sec at normal speed)
-                    if frame_count % 60 == 0:
-                        # print(f"Frame {state.frame_count}: {state}")
-                        
-                        # Show grid preview (center 8x8)
-                        grid_center = state.local_grid[12:20, 12:20]
-                        # print("Grid center:")
-                        # for row in grid_center:
-                        #     print(''.join(['#' if cell == 1 else '.' for cell in row]))
-            
         bridge.write_action(0)
         func_approx.save_weights()
     
@@ -358,4 +332,4 @@ def test_connection(duration_sec: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_connection(duration_sec=600.0)
+    test_algorithm(duration_sec=600.0)

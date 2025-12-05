@@ -74,6 +74,8 @@ public class SharedMemoryBridge : IDisposable {
             }
             
             accessor = mmf.CreateViewAccessor(0, TOTAL_SIZE);
+            //Start with control on C# side
+            accessor.Write(ACTION_READY_OFFSET, (byte) 1); 
             return true;
             
         } catch (Exception ex) {
@@ -185,7 +187,7 @@ public class SharedMemoryBridge : IDisposable {
     /// Automatically clears the ActionReady flag.
     /// Blocks until action arrives.
     /// </summary>
-    public ushort ReadActionAndConsume() {
+    public ushort BlockingRead() {
         if (accessor == null || disposed) {
             return currentAction;
         }
@@ -196,9 +198,8 @@ public class SharedMemoryBridge : IDisposable {
             }
             // Read action
             currentAction = accessor.ReadUInt16(ACTION_OFFSET);
+            Logger.Log(LogLevel.Info, "Actions", $"{currentAction}");
             
-            // Clear ready flag (consume it)
-            accessor.Write(ACTION_READY_OFFSET, (byte)0);
             
             return currentAction;
             
@@ -207,6 +208,12 @@ public class SharedMemoryBridge : IDisposable {
                 $"Error reading action: {ex.Message}");
             return currentAction;
         }
+    }
+    /// <summary>
+    ///  Yields to python (takes it out of spinwait)
+    /// </summary>
+    public void signalPython(){
+        accessor.Write(ACTION_READY_OFFSET, (byte)0);
     }
 }
 

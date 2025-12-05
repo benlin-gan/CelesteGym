@@ -58,8 +58,8 @@ public class CelesteGymModule : EverestModule {
         //Replace hardware input with virtual input:.
         On.Monocle.MInput.Update += OverrideMInputUpdate;
 
-        // Hook level update to extract state
-        Everest.Events.Level.OnBeforeUpdate += OnLevelUpdate;
+        // Hook level update to extract state (OBSOLETE)
+        //Everest.Events.Level.OnBeforeUpdate += OnLevelUpdate;
             
         // Hook level load for initialization
         Everest.Events.Level.OnLoadLevel += OnLoadLevel;
@@ -72,7 +72,7 @@ public class CelesteGymModule : EverestModule {
     public override void Unload() {
         On.Celeste.Celeste.Update -= FastForwardUpdate;
         On.Monocle.MInput.Update -= OverrideMInputUpdate;
-        Everest.Events.Level.OnBeforeUpdate -= OnLevelUpdate;
+        //Everest.Events.Level.OnBeforeUpdate -= OnLevelUpdate;
         Everest.Events.Level.OnLoadLevel -= OnLoadLevel;
 
         sharedMemory?.Dispose();
@@ -88,10 +88,26 @@ public class CelesteGymModule : EverestModule {
             // InputController.action = Instance.sharedMemory.ReadAction();
             // Now propagate to virtual buttons
             orig();
+
+            if (Instance.sharedMemory == null) return;
+            Instance.updateCount++;
+            Player player = level.Tracker.GetEntity<Player>();
+            if (player == null) return;
+        
+            // Extract current game state
+            ExtractState(level, player);
+            Instance.sharedMemory.WriteState(ref Instance.currentState);
+
+             //unpause python to let it compute action for this state.
+            Instance.sharedMemory.signalPython();
+            
+            //block until python finishes action computation
+            InputController.action = Instance.sharedMemory.BlockingRead(); 
             InputController.ApplyAction();
+
+            //Propogate hardware-virtualized-Minput to Celeste Input abstraction layer.
             MInput.UpdateVirtualInputs(); 
             
-            //Logger.Log(LogLevel.Info, "CelesteGym",  $"After update - Jump pressed: {Input.Jump.Pressed}");
         }else{
             orig();
         }
@@ -122,12 +138,12 @@ public class CelesteGymModule : EverestModule {
         int updatesExecuted = 0;
         
         for (int i = 0; i < Settings.UpdatesPerFrame; i++) {
-            //Block until action arrives
-            InputController.action = Instance.sharedMemory.ReadActionAndConsume();
-            
+
             try {
                 // Execute exactly ONE update for this action
                 orig(self, gameTime);
+                //Block until action arrives
+            
                 updatesExecuted++;
                 // OnLevelUpdate writes state during orig()
                 
@@ -164,7 +180,7 @@ public class CelesteGymModule : EverestModule {
         //Logger.Log(LogLevel.Info, "CelesteGym", 
         //    $"Level loaded: {level.Session.Level}");
     }
-    
+    /* moved this hooking logic to MINPUT.
     /// <summary>
     /// Called before each level update. Extract state, communicate with Python.
     /// This gets called updatesPerFrame times per render frame.
@@ -182,15 +198,9 @@ public class CelesteGymModule : EverestModule {
         
         // Write state to shared memory (Python will read when ready)
         Instance.sharedMemory.WriteState(ref Instance.currentState);
+        InputController.action = Instance.sharedMemory.BlockingRead();
         
-        // Periodic debug logging
-        if (Instance.currentState.FrameCount % 2400 == 0) {  // Every ~10 seconds at 400x
-            Logger.Log(LogLevel.Verbose, "CelesteGym", 
-                $"Frame {Instance.currentState.FrameCount}: " +
-                $"Pos=({Instance.currentState.PosX:F1}, {Instance.currentState.PosY:F1}) " +
-                $"Action={InputController.action}");
-        }
-    }
+    } */
 
     /// <summary>
     /// Extract all relevant game state into the GameState struct.
