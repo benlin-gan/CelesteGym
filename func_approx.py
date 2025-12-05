@@ -17,7 +17,7 @@ ACTIONS = {
     "grab": 0x40
 }
 
-# import torch
+# import torch45040.0
 # import torch.nn as nn
 
 class FourierFeatures():#nn.Module):
@@ -104,6 +104,7 @@ class FunctionApproxQLearning():
         self.ground_y = 500
         self.ignore_save = 0
         self.ground_dict = defaultdict(int)
+        self.sa_buffer = []
 
     def get_q(self, state, action):
         Q_vals = state.features @ self.weights
@@ -120,9 +121,9 @@ class FunctionApproxQLearning():
         if (random.random() < self.exploration_prob):
             action = random.randint(0, 127)
             # self.print_action(action)
-            if (action&0x01 !=0):
-                action -= 0x01
-            action |= 0x02
+            #if (action&0x01 !=0):
+            #    action -= 0x01
+            #action |= 0x02
             # if (action&0x01 != 0) and (action&0x02 !=0):
             #     # print(action, end="->")
             #     action -= 0x01
@@ -135,15 +136,17 @@ class FunctionApproxQLearning():
                 action &= 0x5F
             # self.print_action(action)
             self.save_action(action)
+            self.sa_buffer.append((big_state, action))
             return action
         else:
             Q_vals = state.features @ self.weights
             action = np.argmax(Q_vals)
             # self.print_action(np.argmax(Q_vals))
             self.save_action(action)
-            if (action&0x01 !=0):
-                action -= 0x01
-            action |= 0x02
+            #if (action&0x01 !=0):
+            #    action -= 0x01
+            #action |= 0x02
+            self.sa_buffer.append((big_state, action))
             return action
     
     def get_reward(self, state, action):
@@ -219,7 +222,11 @@ class FunctionApproxQLearning():
         print(action_str)
 
 
-    def incorporate_feedback(self, big_state, action, big_next_state):
+    def incorporate_feedback(self):
+        if len(self.sa_buffer) < 2:
+            return
+        big_state, action = self.sa_buffer[-2]
+        big_next_state, _ = self.sa_buffer[-1]
         state = ReducedGameState(big_state)
         # print(state.state)
         next_state = ReducedGameState(big_next_state)

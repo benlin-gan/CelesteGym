@@ -357,3 +357,6 @@ MigrationBackup/
 
 # Virtual Env
 myenv/
+
+#png
+*.png
