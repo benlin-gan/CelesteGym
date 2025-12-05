@@ -6,6 +6,7 @@ import random
 import numpy as np
 from matplotlib import pyplot as plt
 from shared_mem import SharedMemoryBridge
+from tqdm import tqdm
 
 import time
 # Minimal state
@@ -17,14 +18,8 @@ class MinimalState:
         self.dashes = big_state.dashes / 2.0
         self.state = big_state.state  # KEEP THIS for now (to debug reward)
 
-    # Simple reward 
-    def reward(self):
-        if self.state == 0: #StNormal
-            return 1.0 
-        return 0.0
-
 # Minimal DQN
-class ClimbingDQN(nn.Module):
+class CelesteDQN(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv = nn.Sequential(
@@ -36,9 +31,9 @@ class ClimbingDQN(nn.Module):
         )
         
         self.fc = nn.Sequential(
-            nn.Linear(1600 + 4, 8),  # +4 for [vel_x, vel_y, dashes, state]
+            nn.Linear(1600 + 4, 128),  # +4 for [vel_x, vel_y, dashes, state]
             nn.ReLU(),
-            nn.Linear(8, 2)  # 128 actions
+            nn.Linear(128, 128)  # 128 actions
         )
     
     def forward(self, grid, other):
@@ -62,44 +57,49 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
+def get_reward(state, next_state):
+    """
+        get reward from a big state
+    """
+    reward = 0
+    return reward
 
-def train_climbing():
+def train():
     # Setup
     bridge = SharedMemoryBridge()
     bridge.open(timeout_sec=10.0)
     
-    q_network = ClimbingDQN()
-    target_network = ClimbingDQN()
+    q_network = CelesteDQN()
+    target_network = CelesteDQN()
     target_network.load_state_dict(q_network.state_dict())
     
-    optimizer = optim.Adam(q_network.parameters(), lr=1e-3)
+    optimizer = optim.Adam(q_network.parameters(), lr=1e-4)
     replay_buffer = ReplayBuffer(capacity=10000)
     
     # Hyperparameters
-    epsilon = 1.0  # Start with full exploration
+    epsilon = 1  # Start with full exploration
     epsilon_decay = 0.995
     epsilon_min = 0.1
     gamma = 0.99
-    batch_size = 32
-    target_update_freq = 100
+    batch_size = 1024
     
     # Metrics
     episode_rewards = []
-    climbing_rates = []
+    episode_lengths = []
     
     step_count = 0
     episode = 0
     
-    print("Starting climbing training...")
-    
-    while episode < 1000:  # 1000 episodes
-        # Reset (manually reset game or just continue)
+    while episode < 520:  
+        if episode > 500:
+            epsilon = 0 #do some epsilon=0 test at the end.
+            epsilon_min = 0
         state = bridge.read_state()
         episode_reward = 0
-        climbing_steps = 0
         total_steps = 0
         
         qsave = None
+        episode_length = 500
         for step in range(500):  # Max 500 steps per episode
 
             # Convert state
@@ -107,7 +107,7 @@ def train_climbing():
             
             # Epsilon-greedy action selection
             if random.random() < epsilon:
-                action = random.randint(0, 1)
+                action = random.randint(0, 127)
             else:
                 with torch.no_grad():
                     grid = torch.tensor(min_state.grid, dtype=torch.float32).unsqueeze(0)
@@ -119,15 +119,16 @@ def train_climbing():
                     ], dtype=torch.float32).unsqueeze(0)
                     
                     q_values = q_network(grid, other)
-                    qsave = q_values
+                    if qsave is None:
+                        qsave = q_values
                     action = q_values.argmax(dim=1).item()
-            
             # Take action
-            bridge.write_action(action)
-            next_state = bridge.read_state()
+            for _ in range(1):
+                bridge.write_action(action)
+                next_state = bridge.read_state()
 
             #skip respawn states
-            reward = 0
+            reward = get_reward(state, next_state)
             done = False
             while next_state.state == 14:
                 reward = -1
@@ -138,8 +139,6 @@ def train_climbing():
             
             # Track metrics
             episode_reward += reward
-            if min_state.state == 1:
-                climbing_steps += 1
             total_steps += 1
             
             # Store transition
@@ -156,33 +155,23 @@ def train_climbing():
             #print(f"Step {step}: state_id={state.state}, action={action}, reward={reward}, done={done}")
             state = next_state
             if done:
-                print(f"ending episode early at step {step}")
+                episode_length = step
                 break
         #return
-        print(qsave)
+        #print(qsave)
         # Train
         if episode % 10 == 9 and len(replay_buffer) > batch_size:
-            print("starting training")
-            for ts in range(250):
-                if ts % 10 == 0:
-                    print(f"on step {ts}")
-                train_step(q_network, target_network, replay_buffer, 
+            train_step(q_network, target_network, replay_buffer, 
                         optimizer, batch_size, gamma)
-            print("finished training")
-        
-        # Update target network
-        step_count += 1
-        if step_count % target_update_freq == 0:
             target_network.load_state_dict(q_network.state_dict())
         
         state = next_state
         
         # Episode complete
         episode += 1
-        climbing_rate = climbing_steps / total_steps if total_steps > 0 else 0
         episode_rewards.append(episode_reward)
-        climbing_rates.append(climbing_rate)
-        print(f"episode", episode)
+        episode_lengths.append(episode_length)
+        #print(f"episode", episode)
 
         # Decay epsilon
         epsilon = max(epsilon_min, epsilon * epsilon_decay)
@@ -190,25 +179,20 @@ def train_climbing():
         # Log progress
         if episode % 10 == 0:
             avg_reward = np.mean(episode_rewards[-10:])
-            avg_climbing = np.mean(climbing_rates[-10:])
+            avg_length = np.mean(episode_lengths[-10:])
             print(f"Episode {episode}: "
                   f"Avg Reward={avg_reward:.2f}, "
-                  f"Climbing Rate={avg_climbing:.2%}, "
+                  f"Average Length={avg_length:.2f}, "
                   f"Epsilon={epsilon:.3f}")
         
-        # Check convergence
-        if episode >= 100:
-            recent_climbing = np.mean(climbing_rates[-50:])
-            if recent_climbing > 0.9:
-                print(f"✓ CONVERGED! Climbing {recent_climbing:.1%} of the time")
-                break
     
     bridge.close()
-    return episode_rewards, climbing_rates
+    return episode_rewards, episode_lengths
 
 
 def train_step(q_network, target_network, replay_buffer, optimizer, batch_size, gamma):
     states, actions, rewards, next_states, dones = replay_buffer.sample(batch_size)
+    #print(states[0][0])
     
     # Convert to tensors
     grids = torch.stack([torch.tensor(s[0], dtype=torch.float32) for s in states])
@@ -239,7 +223,7 @@ def train_step(q_network, target_network, replay_buffer, optimizer, batch_size, 
 
 
 if __name__ == "__main__":
-    rewards, climbing_rates = train_climbing()
+    rewards, episode_lengths = train()
     
     # Plot results
     import matplotlib.pyplot as plt
@@ -251,13 +235,11 @@ if __name__ == "__main__":
     ax1.set_xlabel('Episode')
     ax1.set_ylabel('Total Reward')
     
-    ax2.plot(climbing_rates)
-    ax2.axhline(y=0.9, color='r', linestyle='--', label='90% threshold')
-    ax2.set_title('Climbing Rate')
+    ax2.plot(episode_lengths)
+    ax2.set_title('Episode Lengths')
     ax2.set_xlabel('Episode')
-    ax2.set_ylabel('% of Steps Climbing')
+    ax2.set_ylabel('Number of Steps Survived')
     ax2.legend()
     
     plt.tight_layout()
-    plt.savefig('climbing_training.png')
-    print("Saved plot to climbing_training.png")
+    plt.savefig('episode_lengths.png')

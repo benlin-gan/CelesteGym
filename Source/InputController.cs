@@ -27,10 +27,8 @@ public static class InputController {
         bool up = (action & 0x01) != 0;
         bool dash = (action & 0x02) != 0;
         bool down = (action & 0x04) != 0;
-        //bool left = (action & 0x08) != 0;     
-        bool left = (action == 0); 
-        bool right = (action == 1);  
-        //bool right = (action & 0x10) != 0;
+        bool left = (action & 0x08) != 0;     
+        bool right = (action & 0x10) != 0;
         bool jump = (action & 0x20) != 0;
         bool grab = (action & 0x40) != 0;
         
