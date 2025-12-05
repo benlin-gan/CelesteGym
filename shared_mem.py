@@ -243,6 +243,11 @@ class SharedMemoryBridge:
             print(f"Error writing action: {e}")
             return False
 
+    def hold_action(self, action, iters):
+        for _ in range(iters):
+            while self.shm[self.ACTION_READY_OFFSET] == 1:
+                pass
+            self.write_action(action)
     def step(self, policy, update):
         """
             generate an action using policy. Then call update()
@@ -255,6 +260,7 @@ class SharedMemoryBridge:
         if state is not None:
             action = policy(state)
         self.write_action(action)
+        self.hold_action(action, 14)
         update()
     
     def get_write_index(self) -> int:
