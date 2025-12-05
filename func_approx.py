@@ -3,6 +3,9 @@ import random
 import struct
 import collections
 
+np.random.seed(1)
+random.seed(1)
+
 # Action masks
 ACTIONS = {
     "left": 0x01,
@@ -41,8 +44,15 @@ class ReducedGameState:
         self.pos_y = big_state.pos_y
         y_norm = self.pos_y / 1538
 
+        self.vel_x = big_state.vel_x
+        self.vel_y = big_state.vel_y
+
+        norm_vel_x = self.vel_x / 300
+        norm_vel_y = self.vel_y / 300
+
         ff = FourierFeatures()
         self.pos_freqs = ff.forward(x_norm, y_norm)
+        self.vel_freqs = ff.forward(norm_vel_x, norm_vel_y)
 
         self.dashes = big_state.dashes
         self.on_ground = big_state.on_ground
@@ -63,6 +73,7 @@ class ReducedGameState:
 
         self.features = np.concatenate([
             self.pos_freqs.ravel(),
+            self.vel_freqs.ravel(),
             [
                 self.dashes,
                 self.on_ground,
@@ -75,17 +86,24 @@ class ReducedGameState:
         ])
         # print("***FEATURE LEN***", len(self.features)) 
         # 1054
+        #1078
 
 import json
+from collections import defaultdict
 class FunctionApproxQLearning():
-    def __init__(self, discount=0.95, exploration_prob=0.01):
+    def __init__(self, discount=0.90, exploration_prob=0.01):
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
-        self.weights = np.random.standard_normal(size=(1054, 128))
+        self.weights = np.random.standard_normal(size=(1078, 128))
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
+        self.action_file = open("best_actions.json", 'a')
+        self.ground_x = 0
+        self.ground_y = 500
+        self.ignore_save = 0
+        self.ground_dict = defaultdict(int)
 
     def get_q(self, state, action):
         Q_vals = state.features @ self.weights
@@ -93,6 +111,7 @@ class FunctionApproxQLearning():
 
     def get_action(self,  big_state):
         if (big_state.state == 13 or big_state.state == 14):
+            self.ground_y = big_state.pos_y
             return 0
         
         # self.print_action(0x45)
@@ -101,9 +120,12 @@ class FunctionApproxQLearning():
         if (random.random() < self.exploration_prob):
             action = random.randint(0, 127)
             # self.print_action(action)
-            if (action&0x01 != 0) and (action&0x02 !=0):
-                # print(action, end="->")
+            if (action&0x01 !=0):
                 action -= 0x01
+            action |= 0x02
+            # if (action&0x01 != 0) and (action&0x02 !=0):
+            #     # print(action, end="->")
+            #     action -= 0x01
                 # print(action)
             if (action&0x04 != 0) and (action&0x08 !=0):
                 # print(action, end="->")
@@ -119,17 +141,32 @@ class FunctionApproxQLearning():
             action = np.argmax(Q_vals)
             # self.print_action(np.argmax(Q_vals))
             self.save_action(action)
+            if (action&0x01 !=0):
+                action -= 0x01
+            action |= 0x02
             return action
     
-    def get_reward(self, state):
-        reward = (1538-state.pos_y) + (state.pos_x)*2
+    def get_reward(self, state, action):
+        reward = ((1538-state.pos_y) + (state.pos_x)*10) *10
         if state.state == 1:# if next to wall and climbing
             reward += 10
-        if state.on_ground == 1:
-            reward += 5
+            if (action&0x04 != 0):
+                reward += 50
+        if state.on_ground == 1 and state.pos_y < self.ground_y:
+            # self.ground_x = state.pos_x
+            self.ground_y = state.pos_y
+            reward += 1000
+            # input("Breakpoint Ground")
+            print(f"Ground, {state.pos_y} {self.ground_dict[state.pos_y]}")
+            self.ground_dict[state.pos_y] += 1
         if reward > self.max_score:
             print(reward)
             self.max_score = reward
+
+        if state.pos_y < 10 and self.ignore_save == 0:
+            self.save_weights()
+            self.ignore_save = 1
+            input("Breakpoint Save Weights")
 
         # Test climbing
         # reward = (1538-state.pos_y)
@@ -138,27 +175,30 @@ class FunctionApproxQLearning():
         #     reward += 1000
         #     print(reward)
         #     # input("Breakpoint")
+
+        # Test left
+        # reward = - state.pos_x
         return reward
 
     def save_action(self, action): # for debugging, print back
         self.actions.append(int(action))
 
     def save_actions(self):
-        if self.running_max > .93*self.max_score:
-            data_record = {
-                'reward': int(self.running_max),
-                'actions': self.actions
-            }
+        # if self.running_max > .93*self.max_score:
+        data_record = {
+            'reward': int(self.running_max),
+            'actions': self.actions
+        }
 
-            json_string = json.dumps(data_record, separators=(',', ':'))
+        json_string = json.dumps(data_record, separators=(',', ':'))
 
-            with open("best_actions.json", 'a') as f:
-                f.write(json_string + '\n')
+        # with open("best_actions.json", 'a') as f:
+        self.action_file.write(json_string + '\n')
 
-            self.actions = []
-            if self.running_max > self.max_score:
-                self.max_score = self.running_max
-            self.running_max = 0
+        self.actions = []
+        if self.running_max > self.max_score:
+            self.max_score = self.running_max
+        self.running_max = 0
     
     def save_weights(self):
         # json_string = json.dumps(self.weights)
@@ -187,7 +227,10 @@ class FunctionApproxQLearning():
         Q_vals = state.features @ self.weights
         Q_vals_next = next_state.features @ self.weights
 
-        reward = self.get_reward(state)
+        reward = self.get_reward(state, action)
+        next_reward = self.get_reward(next_state, 0)
+        # reward = self.get_reward(next_state) - self.get_reward(state)
+        # print(state.pos_x, next_state.pos_x, next_reward-reward)
         if reward > self.running_max:
             self.running_max = reward
         # reward_next = get_reward(next_state)
@@ -197,7 +240,7 @@ class FunctionApproxQLearning():
             self.save_actions()
 
         max_future_Q = np.max(Q_vals_next)
-        target = reward + self.discount * (max_future_Q - reward)
+        target = (next_reward) + self.discount * max_future_Q
         self.weights[:, action] += 0.01 * (target-Q_vals[action])*state.features
 
 

@@ -16,7 +16,7 @@ import time
 from typing import Optional, Tuple
 import numpy as np
 import random
-from score_greedy import Greedy_learning, FunctionApproxQLearning
+from func_approx import FunctionApproxQLearning
 
 class GameState:
     """
@@ -308,6 +308,8 @@ def test_connection(duration_sec: float = 5.0):
             
             bridge.write_action(action)
             # get state
+            time.sleep(sleep_time)  # 100 Hz polling
+
             state = bridge.read_state()
             
             if state is not None:
@@ -330,7 +332,6 @@ def test_connection(duration_sec: float = 5.0):
                         # for row in grid_center:
                         #     print(''.join(['#' if cell == 1 else '.' for cell in row]))
             
-            time.sleep(sleep_time)  # 100 Hz polling
         bridge.write_action(0)
         func_approx.save_weights()
     
@@ -347,4 +348,4 @@ def test_connection(duration_sec: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_connection(duration_sec=300.0)
+    test_connection(duration_sec=600.0)
