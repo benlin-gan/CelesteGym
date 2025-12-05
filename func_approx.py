@@ -105,6 +105,8 @@ class FunctionApproxQLearning():
         self.ignore_save = 0
         self.ground_dict = defaultdict(int)
         self.sa_buffer = []
+        self.action_repeat = 4
+        self.counter = 0
 
     def get_q(self, state, action):
         Q_vals = state.features @ self.weights
@@ -121,9 +123,9 @@ class FunctionApproxQLearning():
         if (random.random() < self.exploration_prob):
             action = random.randint(0, 127)
             # self.print_action(action)
-            #if (action&0x01 !=0):
-            #    action -= 0x01
-            #action |= 0x02
+            if (action&0x01 !=0):
+                action -= 0x01
+            action |= 0x02
             # if (action&0x01 != 0) and (action&0x02 !=0):
             #     # print(action, end="->")
             #     action -= 0x01
@@ -143,9 +145,9 @@ class FunctionApproxQLearning():
             action = np.argmax(Q_vals)
             # self.print_action(np.argmax(Q_vals))
             self.save_action(action)
-            #if (action&0x01 !=0):
-            #    action -= 0x01
-            #action |= 0x02
+            if (action&0x01 !=0):
+                action -= 0x01
+            action |= 0x02
             self.sa_buffer.append((big_state, action))
             return action
     
@@ -223,6 +225,10 @@ class FunctionApproxQLearning():
 
 
     def incorporate_feedback(self):
+        self.counter += 1
+        if self.counter % 100 == 0:
+            print(self.weights)
+            self.counter = 0
         if len(self.sa_buffer) < 2:
             return
         big_state, action = self.sa_buffer[-2]
