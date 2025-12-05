@@ -91,7 +91,7 @@ class ReducedGameState:
 import json
 from collections import defaultdict
 class FunctionApproxQLearning():
-    def __init__(self, discount=0.90, exploration_prob=0.01):
+    def __init__(self, discount=0.90, exploration_prob=0.2):
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
@@ -123,9 +123,9 @@ class FunctionApproxQLearning():
         if (random.random() < self.exploration_prob):
             action = random.randint(0, 127)
             # self.print_action(action)
-            if (action&0x01 !=0):
-                action -= 0x01
-            action |= 0x02
+            # if (action&0x01 !=0):
+            #     action -= 0x01
+            # action |= 0x02
             # if (action&0x01 != 0) and (action&0x02 !=0):
             #     # print(action, end="->")
             #     action -= 0x01
@@ -225,10 +225,10 @@ class FunctionApproxQLearning():
 
 
     def incorporate_feedback(self):
-        self.counter += 1
-        if self.counter % 100 == 0:
-            print(self.weights)
-            self.counter = 0
+        # self.counter += 1
+        # if self.counter % 100 == 0:
+        #     print(self.weights)
+        #     self.counter = 0
         if len(self.sa_buffer) < 2:
             return
         big_state, action = self.sa_buffer[-2]
@@ -254,7 +254,7 @@ class FunctionApproxQLearning():
 
         max_future_Q = np.max(Q_vals_next)
         target = (next_reward) + self.discount * max_future_Q
-        self.weights[:, action] += 0.01 * (target-Q_vals[action])*state.features
+        self.weights[:, action] += 0.001 * (target-Q_vals[action])*state.features
 
 
 class Greedy_learning:
