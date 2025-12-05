@@ -55,7 +55,8 @@ class GameState:
         self.frame_count = unpacked[13]
         
         # Local grid (1024 bytes)
-        self.local_grid = np.frombuffer(unpacked[14], dtype=np.uint8).reshape(32, 32)
+        # self.local_grid = np.frombuffer(unpacked[14], dtype=np.uint8).reshape(32, 32)
+        self.local_grid = np.frombuffer(unpacked[14], dtype=np.uint8).reshape(32, 32)[14:17,14:17]
     
     def __repr__(self):
         return (f"GameState(pos=({self.pos_x:.1f}, {self.pos_y:.1f}), "
@@ -308,7 +309,7 @@ def test_connection(duration_sec: float = 5.0):
             
             bridge.write_action(action)
             # get state
-            time.sleep(sleep_time)  # 100 Hz polling
+            # time.sleep(sleep_time)  # 100 Hz polling
 
             state = bridge.read_state()
             

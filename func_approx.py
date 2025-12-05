@@ -2,9 +2,11 @@ import numpy as np
 import random
 import struct
 import collections
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 
-np.random.seed(1)
-random.seed(1)
+np.random.seed(42)
+random.seed(42)
 
 # Action masks
 ACTIONS = {
@@ -84,6 +86,11 @@ class ReducedGameState:
             ],
             self.local_grid.ravel()
         ])
+
+        # print(f"Pos: ({self.pos_x}, {self.pos_y}); Vel: ({self.vel_x}, {self.vel_y})")
+        # print(f"{self.dashes}, {self.on_ground}, {self.wall_slide_dir}, {self.state}, {self.dead}, {self.can_dash}")
+        # print(self.local_grid)
+        # print(self.features)
         # print("***FEATURE LEN***", len(self.features)) 
         # 1054
         #1078
@@ -91,11 +98,12 @@ class ReducedGameState:
 import json
 from collections import defaultdict
 class FunctionApproxQLearning():
-    def __init__(self, discount=0.90, exploration_prob=0.01):
+    def __init__(self, discount=0.90, exploration_prob=0.20):
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
-        self.weights = np.random.standard_normal(size=(1078, 128))
+        self.weights = np.random.standard_normal(size=(63, 128))
+        # print(self.weights)
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
@@ -117,8 +125,11 @@ class FunctionApproxQLearning():
         # self.print_action(0x45)
         # return 0x45
         state = ReducedGameState(big_state)
-        if (random.random() < self.exploration_prob):
+        explore_random = random.random()
+        # print("Explore random", explore_random)
+        if (explore_random < self.exploration_prob):
             action = random.randint(0, 127)
+            # print("action", action)
             # self.print_action(action)
             if (action&0x01 !=0):
                 action -= 0x01
