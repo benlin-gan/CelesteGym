@@ -73,7 +73,7 @@ def train():
     target_network = CelesteDQN()
     target_network.load_state_dict(q_network.state_dict())
     
-    optimizer = optim.Adam(q_network.parameters(), lr=1e-4)
+    optimizer = optim.Adam(q_network.parameters(), lr=1e-3)
     replay_buffer = ReplayBuffer(capacity=10000)
     
     # Hyperparameters
