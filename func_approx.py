@@ -145,9 +145,9 @@ class FunctionApproxQLearning():
             action = np.argmax(Q_vals)
             # self.print_action(np.argmax(Q_vals))
             self.save_action(action)
-            if (action&0x01 !=0):
-                action -= 0x01
-            action |= 0x02
+            #if (action&0x01 !=0):
+            #    action -= 0x01
+            #action |= 0x02
             self.sa_buffer.append((big_state, action))
             return action
     
