@@ -72,7 +72,7 @@ class ReducedGameState:
         # print("local_grid", self.local_grid.shape)
 
         self.features = np.concatenate([
-            self.pos_freqs.ravel(),
+            # self.pos_freqs.ravel(),
             self.vel_freqs.ravel(),
             [
                 self.dashes,
@@ -95,7 +95,7 @@ class FunctionApproxQLearning():
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
-        self.weights = np.random.standard_normal(size=(1078, 128))
+        self.weights = np.random.standard_normal(size=(1054, 128))
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
@@ -126,9 +126,9 @@ class FunctionApproxQLearning():
             # if (action&0x01 !=0):
             #     action -= 0x01
             # action |= 0x02
-            # if (action&0x01 != 0) and (action&0x02 !=0):
-            #     # print(action, end="->")
-            #     action -= 0x01
+            if (action&0x01 != 0) and (action&0x02 !=0):
+                # print(action, end="->")
+                action -= 0x01
                 # print(action)
             if (action&0x04 != 0) and (action&0x08 !=0):
                 # print(action, end="->")
