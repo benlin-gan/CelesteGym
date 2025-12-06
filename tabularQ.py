@@ -2,6 +2,7 @@ import numpy as np
 import random
 import struct
 import collections
+import os
 
 np.random.seed(1)
 random.seed(1)
@@ -24,8 +25,6 @@ class FourierFeatures():#nn.Module):
     def __init__(self, num_freqs=6):
         # super().__init__()
         self.freq_bands = 2**np.arange(num_freqs)
-        self.room = 1
-        self.episode = 1
         # self.register_buffer("freq_bands", freq_bands)
 
     def forward(self, x, y):
@@ -49,25 +48,23 @@ class ReducedGameState:
         self.vel_x = big_state.vel_x
         self.vel_y = big_state.vel_y
 
-        norm_vel_x = self.vel_x / 300
-        norm_vel_y = self.vel_y / 300
+        vel_x_bin = int(self.vel_x / 20)
+        vel_y_bin = int(self.vel_y / 20)
 
-        ff = FourierFeatures()
-        self.pos_freqs = ff.forward(x_norm, y_norm)
-        self.vel_freqs = ff.forward(norm_vel_x, norm_vel_y)
+        #ff = FourierFeatures()
+        #self.pos_freqs = ff.forward(x_norm, y_norm)
+        #self.vel_freqs = ff.forward(norm_vel_x, norm_vel_y)
 
         self.dashes = big_state.dashes
         self.on_ground = big_state.on_ground
-        self.wall_slide_dir = big_state.wall_slide_dir
         self.state = big_state.state
         self.dead = big_state.dead
         self.can_dash = big_state.can_dash
-        self.local_grid = big_state.local_grid
+        self.local_grid = big_state.local_grid[14:18, 14:18]
 
         # print("pos_freqs", self.pos_freqs.shape)
         # print("dashes", type(self.dashes))
         # print("on_ground", type(self.on_ground))
-        # print("wall_slide_dir", type(self.wall_slide_dir))
         # print("state", type(self.state))
         # print("dead", type(self.dead))
         # print("can_dash", type(self.can_dash))
@@ -77,13 +74,11 @@ class ReducedGameState:
             # self.pos_freqs.ravel(),
             # self.vel_freqs.ravel(),
             [
-                norm_vel_x,
-                norm_vel_y,
+                vel_x_bin,
+                vel_y_bin,
                 self.dashes,
                 self.on_ground,
-                self.wall_slide_dir,
                 self.state,
-                self.dead,
                 self.can_dash
             ],
             self.local_grid.ravel()
@@ -106,7 +101,8 @@ class TabularQLearning():
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        self.action_file = open(f"tabular/{seed}_seed_episode_log.json", 'a')
+        os.makedirs("tabular", exist_ok=True)
+        self.action_file = open(f"tabular/{seed}_seed_episode_log.json", 'w')
 
         self.ground_x = 0
         self.ground_y = 500
@@ -115,9 +111,11 @@ class TabularQLearning():
         self.sa_buffer = []
         self.action_repeat = 4
         self.counter = 0
+        self.room = 1
+        self.episode = 1
 
     def get_q(self, state, action):
-        Q_vals = self.Q[state.features][action]
+        Q_vals = self.Q[tuple(state.features)][action]
         return Q_vals[action]
 
     def get_action(self,  big_state):
@@ -149,7 +147,7 @@ class TabularQLearning():
             self.sa_buffer.append((big_state, action))
             return action
         else:
-            Q_vals = self.Q[state.features]
+            Q_vals = self.Q[tuple(state.features)]
             action = np.argmax(Q_vals)
             self.save_action(action)
             self.sa_buffer.append((big_state, action))
@@ -211,6 +209,7 @@ class TabularQLearning():
         if self.running_max > self.max_score:
             self.max_score = self.running_max
         self.running_max = 0
+        self.episode += 1
     
     def save_weights(self):
         # json_string = json.dumps(self.weights)
@@ -232,7 +231,7 @@ class TabularQLearning():
         print(action_str)
 
 
-    def incorporate_feedback(self):
+    def incorporate_feedback(self, episode_done, room_won):
         # self.counter += 1
         # if self.counter % 100 == 0:
         #     print(self.weights)
@@ -245,8 +244,8 @@ class TabularQLearning():
         # print(state.state)
         next_state = ReducedGameState(big_next_state)
 
-        Q_vals = self.Q[state.features] # state.features @ self.weights
-        Q_vals_next = self.Q[next_state.features] #next_state.features @ self.weights
+        Q_vals = self.Q[tuple(state.features)] # state.features @ self.weights
+        Q_vals_next = self.Q[tuple(next_state.features)] #next_state.features @ self.weights
 
         reward = self.get_reward(state, action)
         next_reward = self.get_reward(next_state, 0)
@@ -255,12 +254,12 @@ class TabularQLearning():
         if reward > self.running_max:
             self.running_max = reward
         # reward_next = get_reward(next_state)
-        if room_won:
-            self.room += 1
         if episode_done:
             self.save_actions()
+        if room_won:
+            self.room += 1
 
         max_future_Q = np.max(Q_vals_next)
         target = (next_reward) + self.discount * max_future_Q
         # self.weights[:, action] += 0.001 * (target-Q_vals[action])*state.features
-        self.Q[state.features][action] += 0.001 * (target-self.Q[state.features][action])
+        self.Q[tuple(state.features)][action] += 0.001 * (target-self.Q[tuple(state.features)][action])
