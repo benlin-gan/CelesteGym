@@ -337,7 +337,7 @@ def test_algorithm(seed: int, timeout: float = 5.0):
     try:
         while time.time() - start_time < timeout:
             bridge.step(policy=alg.get_action, update=alg.incorporate_feedback)
-            if alg.episode == 1024:
+            if alg.episode == 1025:
                 break  
             frame_count += 1
             time.sleep(sleep_time)  # 10000 Hz polling
