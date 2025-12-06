@@ -95,7 +95,7 @@ class FunctionApproxQLearning():
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        self.action_file = open(f"{seed}_seed_episode_log.json", 'a')
+        self.action_file = open(f"{seed}_seed_episode_log.json", 'w')
         self.ground_x = 0
         self.ground_y = 500
         self.ignore_save = 0
