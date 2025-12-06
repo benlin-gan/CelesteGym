@@ -18,7 +18,7 @@ public struct GameState {
     public float Stamina;
     public byte Dashes;
     public byte OnGround;
-    public byte WallSlideDir;  // -1, 0, 1
+    public byte Transitioning;  
     public byte Facing;        // -1 or 1
     public byte State;         // Player state machine state
     public byte Dead;          // 0 or 1

@@ -198,7 +198,7 @@ public class SharedMemoryBridge : IDisposable {
             }
             // Read action
             currentAction = accessor.ReadUInt16(ACTION_OFFSET);
-            Logger.Log(LogLevel.Info, "Actions", $"{currentAction}");
+            //Logger.Log(LogLevel.Info, "Actions", $"{currentAction}");
             
             
             return currentAction;

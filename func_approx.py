@@ -3,8 +3,9 @@ import random
 import struct
 import collections
 
-np.random.seed(1)
-random.seed(1)
+SEED = 1
+np.random.seed(SEED)
+random.seed(SEED)
 
 # Action masks
 ACTIONS = {
@@ -56,7 +57,6 @@ class ReducedGameState:
 
         self.dashes = big_state.dashes
         self.on_ground = big_state.on_ground
-        self.wall_slide_dir = big_state.wall_slide_dir
         self.state = big_state.state
         self.dead = big_state.dead
         self.can_dash = big_state.can_dash
@@ -65,7 +65,6 @@ class ReducedGameState:
         # print("pos_freqs", self.pos_freqs.shape)
         # print("dashes", type(self.dashes))
         # print("on_ground", type(self.on_ground))
-        # print("wall_slide_dir", type(self.wall_slide_dir))
         # print("state", type(self.state))
         # print("dead", type(self.dead))
         # print("can_dash", type(self.can_dash))
@@ -77,7 +76,6 @@ class ReducedGameState:
             [
                 self.dashes,
                 self.on_ground,
-                self.wall_slide_dir,
                 self.state,
                 self.dead,
                 self.can_dash
@@ -95,18 +93,19 @@ class FunctionApproxQLearning():
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
-        self.weights = np.random.standard_normal(size=(1054, 128))
+        self.weights = np.random.standard_normal(size=(1053, 128))
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        self.action_file = open("best_actions.json", 'a')
+        self.action_file = open(f"episode_log_seed_{SEED}.json", 'a')
         self.ground_x = 0
         self.ground_y = 500
         self.ignore_save = 0
         self.ground_dict = defaultdict(int)
         self.sa_buffer = []
-        self.action_repeat = 4
         self.counter = 0
+        self.episode = 1
+        self.room = 1
 
     def get_q(self, state, action):
         Q_vals = state.features @ self.weights
@@ -171,7 +170,7 @@ class FunctionApproxQLearning():
         if state.pos_y < 10 and self.ignore_save == 0:
             self.save_weights()
             self.ignore_save = 1
-            input("Breakpoint Save Weights")
+            #input("Breakpoint Save Weights")
 
         # Test climbing
         # reward = (1538-state.pos_y)
@@ -191,6 +190,9 @@ class FunctionApproxQLearning():
     def save_actions(self):
         # if self.running_max > .93*self.max_score:
         data_record = {
+            'episode': self.episode,
+            'room': self.room,
+            'ground_y': self.ground_y,
             'reward': int(self.running_max),
             'actions': self.actions
         }
@@ -204,6 +206,7 @@ class FunctionApproxQLearning():
         if self.running_max > self.max_score:
             self.max_score = self.running_max
         self.running_max = 0
+        self.episode += 1
     
     def save_weights(self):
         # json_string = json.dumps(self.weights)
@@ -224,7 +227,7 @@ class FunctionApproxQLearning():
         print(action_str)
 
 
-    def incorporate_feedback(self):
+    def incorporate_feedback(self, episode_done, room_won):
         # self.counter += 1
         # if self.counter % 100 == 0:
         #     print(self.weights)
@@ -247,9 +250,9 @@ class FunctionApproxQLearning():
         if reward > self.running_max:
             self.running_max = reward
         # reward_next = get_reward(next_state)
-        
-        if (next_state.state == 13 or next_state.state == 14) and self.actions != []:
-            # input("Breakpoint")
+        if room_won:
+            self.room += 1
+        if episode_done:
             self.save_actions()
 
         max_future_Q = np.max(Q_vals_next)
@@ -324,9 +327,6 @@ class Greedy_learning:
             # dist = abs(state.pos_x - prev_state.pos_x) + abs(state.pos_y - prev_state.pos_y)
             # score += state.frame_count * time_penalty #+ (len(self.visited) - prev_visited_count) * 3
             score += (1538-state.pos_y) + (state.pos_x)
-            # if state.wall_slide_dir != 0:
-            #     score += 5
-            # print(state.pos_x, state.pos_y)
             if (prev_state.state == 1 and action|0x40 != 0) or state.state == 1:# if next to wall and climbing
                 score += 50
             if state.on_ground:

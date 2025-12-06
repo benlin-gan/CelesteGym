@@ -113,7 +113,7 @@ class TabularQLearning():
         self.counter = 0
 
     def get_q(self, state, action):
-        Q_vals = self.Q[state][action]
+        Q_vals = self.Q[state.features][action]
         return Q_vals[action]
 
     def get_action(self,  big_state):
@@ -145,7 +145,7 @@ class TabularQLearning():
             self.sa_buffer.append((big_state, action))
             return action
         else:
-            Q_vals = self.Q[state]
+            Q_vals = self.Q[state.features]
             action = np.argmax(Q_vals)
             self.save_action(action)
             self.sa_buffer.append((big_state, action))
@@ -238,8 +238,8 @@ class TabularQLearning():
         # print(state.state)
         next_state = ReducedGameState(big_next_state)
 
-        Q_vals = self.Q[state] # state.features @ self.weights
-        Q_vals_next = self.Q[next_state] #next_state.features @ self.weights
+        Q_vals = self.Q[state.features] # state.features @ self.weights
+        Q_vals_next = self.Q[next_state.features] #next_state.features @ self.weights
 
         reward = self.get_reward(state, action)
         next_reward = self.get_reward(next_state, 0)
@@ -256,4 +256,4 @@ class TabularQLearning():
         max_future_Q = np.max(Q_vals_next)
         target = (next_reward) + self.discount * max_future_Q
         # self.weights[:, action] += 0.001 * (target-Q_vals[action])*state.features
-        self.Q[state][action] += 0.001 * (target-self.Q[state][action])
+        self.Q[state.features][action] += 0.001 * (target-self.Q[state.features][action])
