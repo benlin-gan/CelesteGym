@@ -2,6 +2,7 @@ import numpy as np
 import random
 import struct
 import collections
+import os
 
 # Action masks
 ACTIONS = {
