@@ -58,10 +58,17 @@ class ReplayBuffer:
         return len(self.buffer)
 
 def get_reward(state, next_state):
-    """
-        get reward from a big state
-    """
+    """Compute reward based on state transition"""
     reward = 0
+    
+    # Height reward (lower Y is better in Celeste coordinates)
+    height_gain = state.pos_y - next_state.pos_y
+    reward += height_gain * 0.01
+    
+    # Horizontal progress
+    horizontal_gain = next_state.pos_x - state.pos_x
+    reward += horizontal_gain * 0.1
+    
     return reward
 
 def train():
@@ -94,6 +101,8 @@ def train():
         if episode > 500:
             epsilon = 0 #do some epsilon=0 test at the end.
             epsilon_min = 0
+        while bridge.shm[bridge.ACTION_READY_OFFSET] == 1:
+            pass    
         state = bridge.read_state()
         episode_reward = 0
         total_steps = 0
@@ -101,7 +110,7 @@ def train():
         qsave = None
         episode_length = 500
         for step in range(500):  # Max 500 steps per episode
-
+            
             # Convert state
             min_state = MinimalState(state)
             
@@ -122,19 +131,24 @@ def train():
                     if qsave is None:
                         qsave = q_values
                     action = q_values.argmax(dim=1).item()
-            # Take action
-            for _ in range(1):
-                bridge.write_action(action)
+            #consume action for current state
+            bridge.write_action(action)
+            for _ in range(14):
+                while bridge.shm[bridge.ACTION_READY_OFFSET] == 1:
+                    pass   
                 next_state = bridge.read_state()
+                bridge.write_action(action)
 
             #skip respawn states
             reward = get_reward(state, next_state)
             done = False
             while next_state.state == 14:
-                reward = -1
+                reward = -10
                 done=True
-                bridge.write_action(0)
+                while bridge.shm[bridge.ACTION_READY_OFFSET] == 1:
+                    pass
                 next_state = bridge.read_state()
+                bridge.write_action(0)
 
             
             # Track metrics
