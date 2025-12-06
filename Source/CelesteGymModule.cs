@@ -213,6 +213,7 @@ public class CelesteGymModule : EverestModule {
         Instance.currentState.VelY = player.Speed.Y;
         Instance.currentState.Stamina = player.Stamina;
         
+        Instance.currentState.Transitioning = (byte) (level.Transitioning ? 1 : 0);
         // Player abilities
         Instance.currentState.Dashes = (byte)player.Dashes;
         Instance.currentState.OnGround = (byte)(player.OnGround() ? 1 : 0);

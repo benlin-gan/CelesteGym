@@ -17,6 +17,7 @@ from typing import Optional, Tuple
 import numpy as np
 import random
 from func_approx import FunctionApproxQLearning
+from tabularQ import TabularQLearning
 
 class GameState:
     """
@@ -46,7 +47,7 @@ class GameState:
 
         self.dashes = unpacked[5]
         self.on_ground = bool(unpacked[6])
-        self.wall_slide_dir = unpacked[7]
+        self.transitioning = bool(unpacked[7])
         self.facing = unpacked[8]
         self.state = unpacked[9]
         self.dead = bool(unpacked[10])
@@ -248,7 +249,24 @@ class SharedMemoryBridge:
         for _ in range(iters):
             while self.shm[self.ACTION_READY_OFFSET] == 1:
                 pass
+            state = self.read_state()
             self.write_action(action)
+        if state.transitioning:
+            input("Room Complete!!!")
+        #skip no-control states 
+        #NOTE state must last for at least iters frames to be reliable
+        episode_done = False
+        room_won = False
+        while state.state == 14 or state.transitioning:
+            episode_done = True
+            if state.transitioning:
+                room_won = True
+            while self.shm[self.ACTION_READY_OFFSET] == 1:
+                pass
+            state = self.read_state()
+            self.write_action(0) #technically does an extra NOOP
+        return episode_done, room_won
+
     def step(self, policy, update):
         """
             generate an action using policy. Then call update()
@@ -261,8 +279,8 @@ class SharedMemoryBridge:
         if state is not None:
             action = policy(state)
         self.write_action(action)
-        self.hold_action(action, 14)
-        update()
+        episode_done, room_won = self.hold_action(action, 14)
+        update(episode_done, room_won)
     
     def get_write_index(self) -> int:
         """Get current write index (for debugging)."""
@@ -313,17 +331,18 @@ def test_algorithm(duration_sec: float = 5.0):
     sleep_time = 0.0001
 
     # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
-    func_approx = FunctionApproxQLearning()
+    alg = FunctionApproxQLearning()
+    #alg = TabularQLearning()
     
     try:
         while time.time() - start_time < duration_sec:
-            bridge.step(policy=func_approx.get_action, update=func_approx.incorporate_feedback)            
+            bridge.step(policy=alg.get_action, update=alg.incorporate_feedback)            
             frame_count += 1
             time.sleep(sleep_time)  # 10000 Hz polling
             
                 
         bridge.write_action(0)
-        func_approx.save_weights()
+        alg.save_weights()
     
     except KeyboardInterrupt:
         print("\nTest interrupted")
