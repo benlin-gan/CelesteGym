@@ -18,6 +18,7 @@ import numpy as np
 import random
 from func_approx import FunctionApproxQLearning
 from tabularQ import TabularQLearning
+import sys
 
 class GameState:
     """
@@ -360,4 +361,8 @@ def test_algorithm(seed: int, timeout: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_algorithm(seed=1, timeout=180.0)
+    if len(sys.argv) != 2:
+        print("usage: python shared_mem.py SEED")
+        sys.exit(1)
+    seed = int(sys.argv[1])
+    test_algorithm(seed=seed, timeout=180.0)
