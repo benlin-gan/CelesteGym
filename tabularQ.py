@@ -24,6 +24,8 @@ class FourierFeatures():#nn.Module):
     def __init__(self, num_freqs=6):
         # super().__init__()
         self.freq_bands = 2**np.arange(num_freqs)
+        self.room = 1
+        self.episode = 1
         # self.register_buffer("freq_bands", freq_bands)
 
     def forward(self, x, y):
@@ -93,7 +95,9 @@ class ReducedGameState:
 import json
 from collections import defaultdict
 class TabularQLearning():
-    def __init__(self, discount=0.90, exploration_prob=0.2):
+    def __init__(self, seed, discount=0.90, exploration_prob=0.2):
+        np.random.seed(seed)
+        random.seed(seed)
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
@@ -102,7 +106,7 @@ class TabularQLearning():
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        self.action_file = open("best_actions.json", 'a')
+        self.action_file = open(f"tabular/{seed}_seed_episode_log.json", 'a')
 
         self.ground_x = 0
         self.ground_y = 500
@@ -191,6 +195,9 @@ class TabularQLearning():
     def save_actions(self):
         # if self.running_max > .93*self.max_score:
         data_record = {
+            'episode': self.episode,
+            'room': self.room,
+            'ground_y': self.ground_y,
             'reward': int(self.running_max),
             'actions': self.actions
         }
@@ -248,9 +255,9 @@ class TabularQLearning():
         if reward > self.running_max:
             self.running_max = reward
         # reward_next = get_reward(next_state)
-        
-        if (next_state.state == 13 or next_state.state == 14) and self.actions != []:
-            # input("Breakpoint")
+        if room_won:
+            self.room += 1
+        if episode_done:
             self.save_actions()
 
         max_future_Q = np.max(Q_vals_next)
