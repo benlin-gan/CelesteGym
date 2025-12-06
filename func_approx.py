@@ -95,7 +95,8 @@ class FunctionApproxQLearning():
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        self.action_file = open(f"{seed}_seed_episode_log.json", 'w')
+        os.makedirs("funcprox", exist_ok=True)
+        self.action_file = open(f"funcprox/{seed}_seed_episode_log.json", 'w')
         self.ground_x = 0
         self.ground_y = 500
         self.ignore_save = 0
@@ -248,10 +249,10 @@ class FunctionApproxQLearning():
         if reward > self.running_max:
             self.running_max = reward
         # reward_next = get_reward(next_state)
-        if room_won:
-            self.room += 1
         if episode_done:
             self.save_actions()
+        if room_won:
+            self.room += 1
 
         max_future_Q = np.max(Q_vals_next)
         target = (next_reward) + self.discount * max_future_Q
