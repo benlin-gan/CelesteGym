@@ -48,8 +48,8 @@ class ReducedGameState:
         self.vel_x = big_state.vel_x
         self.vel_y = big_state.vel_y
 
-        vel_x_bin = int(self.vel_x / 20)
-        vel_y_bin = int(self.vel_y / 20)
+        norm_vel_x = int(self.vel_x / 10)
+        norm_vel_y = int(self.vel_y / 10)
 
         #ff = FourierFeatures()
         #self.pos_freqs = ff.forward(x_norm, y_norm)
@@ -74,11 +74,12 @@ class ReducedGameState:
             # self.pos_freqs.ravel(),
             # self.vel_freqs.ravel(),
             [
-                vel_x_bin,
-                vel_y_bin,
+                norm_vel_x,
+                norm_vel_y,
                 self.dashes,
                 self.on_ground,
                 self.state,
+                self.dead,
                 self.can_dash
             ],
             self.local_grid.ravel()

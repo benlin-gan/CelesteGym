@@ -360,3 +360,6 @@ myenv/
 
 #png
 *.png
+*.npy
+tabular/
+funcprox/
