@@ -251,7 +251,8 @@ class SharedMemoryBridge:
             state = self.read_state()
             self.write_action(action)
         if state.transitioning:
-            input("Room Complete!!!")
+            pass
+            #input("Room Complete!!!")
         #skip no-control states 
         #NOTE state must last for at least iters frames to be reliable
         episode_done = False
@@ -311,12 +312,12 @@ class SharedMemoryBridge:
         self.close()
 
 
-def test_algorithm(duration_sec: float = 5.0):
+def test_algorithm(seed: int, timeout: float = 5.0):
     """
     Execute a DMU algorithm
     
     Args:
-        duration_sec: How long to run the test
+        timeout: Maximum time to run the test
     """
     
     bridge = SharedMemoryBridge()
@@ -330,12 +331,14 @@ def test_algorithm(duration_sec: float = 5.0):
     sleep_time = 0.0001
 
     # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
-    alg = FunctionApproxQLearning()
+    alg = FunctionApproxQLearning(seed)
     #alg = TabularQLearning()
     
     try:
-        while time.time() - start_time < duration_sec:
-            bridge.step(policy=alg.get_action, update=alg.incorporate_feedback)            
+        while time.time() - start_time < timeout:
+            bridge.step(policy=alg.get_action, update=alg.incorporate_feedback)
+            if alg.episode == 1024:
+                break  
             frame_count += 1
             time.sleep(sleep_time)  # 10000 Hz polling
             
@@ -356,4 +359,4 @@ def test_algorithm(duration_sec: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    test_algorithm(duration_sec=600.0)
+    test_algorithm(seed=1, timeout=180.0)
