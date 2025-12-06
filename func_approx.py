@@ -3,10 +3,6 @@ import random
 import struct
 import collections
 
-SEED = 1
-np.random.seed(SEED)
-random.seed(SEED)
-
 # Action masks
 ACTIONS = {
     "left": 0x01,
@@ -89,7 +85,9 @@ class ReducedGameState:
 import json
 from collections import defaultdict
 class FunctionApproxQLearning():
-    def __init__(self, discount=0.90, exploration_prob=0.2):
+    def __init__(self, seed, discount=0.90, exploration_prob=0.2):
+        np.random.seed(seed)
+        random.seed(seed)
         # self.actions = actions
         self.discount = discount
         self.exploration_prob = exploration_prob
@@ -97,7 +95,7 @@ class FunctionApproxQLearning():
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        self.action_file = open(f"episode_log_seed_{SEED}.json", 'a')
+        self.action_file = open(f"{seed}_seed_episode_log.json", 'a')
         self.ground_x = 0
         self.ground_y = 500
         self.ignore_save = 0
