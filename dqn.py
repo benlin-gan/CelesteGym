@@ -77,7 +77,7 @@ class DQNLearning:
         # Hyperparameters
         self.discount = discount
         self.exploration_prob = exploration_prob
-        self.epsilon_decay = 0.998
+        self.epsilon_decay = 0.997
         self.epsilon_min = 0.1
         self.gamma = 0.99
         self.batch_size = 1024
