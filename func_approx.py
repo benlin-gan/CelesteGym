@@ -86,7 +86,7 @@ class ReducedGameState:
 import json
 from collections import defaultdict
 class FunctionApproxQLearning():
-    def __init__(self, seed, discount=0.90, exploration_prob=0.2):
+    def __init__(self, seed, wheels = False,discount=0.90, exploration_prob=0.2):
         np.random.seed(seed)
         random.seed(seed)
         # self.actions = actions
@@ -96,8 +96,12 @@ class FunctionApproxQLearning():
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        os.makedirs("funcprox", exist_ok=True)
-        self.action_file = open(f"funcprox/{seed}_seed_episode_log.json", 'w')
+        self.dirname = "funcproxwheels" if wheels else "funcprox"
+        try: 
+            os.makedirs(self.dirname, exist_ok=True)
+            self.action_file = open(f"{self.dirname}/{seed}_seed_episode_log.json", 'w')
+        except OSError(e):
+            print(e)
         self.ground_x = 0
         self.ground_y = 500
         self.ignore_save = 0
@@ -106,6 +110,7 @@ class FunctionApproxQLearning():
         self.counter = 0
         self.episode = 1
         self.room = 1
+        self.wheels = wheels
 
     def get_q(self, state, action):
         Q_vals = state.features @ self.weights
@@ -122,9 +127,10 @@ class FunctionApproxQLearning():
         if (random.random() < self.exploration_prob):
             action = random.randint(0, 127)
             # self.print_action(action)
-            # if (action&0x01 !=0):
-            #     action -= 0x01
-            # action |= 0x02
+            if self.wheels:
+                if (action&0x01 !=0):
+                    action -= 0x01
+                action |= 0x02
             if (action&0x01 != 0) and (action&0x02 !=0):
                 # print(action, end="->")
                 action -= 0x01
@@ -144,9 +150,10 @@ class FunctionApproxQLearning():
             action = np.argmax(Q_vals)
             # self.print_action(np.argmax(Q_vals))
             self.save_action(action)
-            #if (action&0x01 !=0):
-            #    action -= 0x01
-            #action |= 0x02
+            if self.wheels:
+                if (action&0x01 !=0):
+                    action -= 0x01
+                action |= 0x02
             self.sa_buffer.append((big_state, action))
             return action
     

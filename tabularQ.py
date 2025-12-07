@@ -91,7 +91,7 @@ class ReducedGameState:
 import json
 from collections import defaultdict
 class TabularQLearning():
-    def __init__(self, seed, discount=0.90, exploration_prob=0.2):
+    def __init__(self, seed, discount=0.90, exploration_prob=1):
         np.random.seed(seed)
         random.seed(seed)
         # self.actions = actions
@@ -102,8 +102,8 @@ class TabularQLearning():
         self.max_score = float("-inf") # for debugging
         self.actions = [] # for saving
         self.running_max = float("-inf")
-        os.makedirs("tabular", exist_ok=True)
-        self.action_file = open(f"tabular/{seed}_seed_episode_log.json", 'w')
+        os.makedirs("random", exist_ok=True)
+        self.action_file = open(f"random/{seed}_seed_episode_log.json", 'w')
 
         self.ground_x = 0
         self.ground_y = 500
@@ -174,7 +174,7 @@ class TabularQLearning():
         if state.pos_y < 10 and self.ignore_save == 0:
             self.save_weights()
             self.ignore_save = 1
-            input("Breakpoint Save Weights")
+            #input("Breakpoint Save Weights")
 
         # Test climbing
         # reward = (1538-state.pos_y)
@@ -218,7 +218,8 @@ class TabularQLearning():
         # with open("weights.json", 'w') as f:
         #     json.dump(self.weights, f, indent=4)
         # np.save('weights.npy', self.weights)
-        np.save('tabularQ.npy', self.Q)
+        pass
+        #np.save('tabularQ.npy', self.Q)
 
     def print_action(self, action):
         action_str = ""
