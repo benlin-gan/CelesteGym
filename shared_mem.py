@@ -313,7 +313,7 @@ class SharedMemoryBridge:
         self.close()
 
 
-def test_algorithm(seed: int, timeout: float = 5.0):
+def test_algorithm(seed: int, wheels: bool, timeout: float = 5.0):
     """
     Execute a DMU algorithm
     
@@ -332,8 +332,8 @@ def test_algorithm(seed: int, timeout: float = 5.0):
     sleep_time = 0.0001
 
     # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
-    alg = FunctionApproxQLearning(seed)
-    #alg = TabularQLearning(seed)
+    #alg = FunctionApproxQLearning(seed, wheels)
+    alg = TabularQLearning(seed)
     
     try:
         while time.time() - start_time < timeout:
@@ -360,8 +360,9 @@ def test_algorithm(seed: int, timeout: float = 5.0):
 
 if __name__ == "__main__":
     # Run test when executed directly
-    if len(sys.argv) != 2:
-        print("usage: python shared_mem.py SEED")
+    if len(sys.argv) != 3:
+        print("usage: python shared_mem.py SEED WHEELS")
         sys.exit(1)
     seed = int(sys.argv[1])
-    test_algorithm(seed=seed, timeout=180.0)
+    wheels = int(sys.argv[2]) == 1
+    test_algorithm(seed=seed, wheels=wheels, timeout=480.0)
