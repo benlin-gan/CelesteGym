@@ -18,6 +18,7 @@ import numpy as np
 import random
 from func_approx import FunctionApproxQLearning
 from tabularQ import TabularQLearning
+from dqn import DQNLearning
 import sys
 
 class GameState:
@@ -333,7 +334,8 @@ def test_algorithm(seed: int, wheels: bool, timeout: float = 5.0):
 
     # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
     #alg = FunctionApproxQLearning(seed, wheels)
-    alg = TabularQLearning(seed)
+    #alg = TabularQLearning(seed)
+    alg = DQNLearning(seed)
     
     try:
         while time.time() - start_time < timeout:

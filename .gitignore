@@ -363,5 +363,6 @@ myenv/
 *.npy
 tabular/
 funcprox/
-funcproxhwheels/
+funcproxwheels/
 random/
+dqn/
