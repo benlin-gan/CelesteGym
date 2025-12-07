@@ -334,9 +334,9 @@ def test_algorithm(seed: int, wheels: bool, timeout: float = 5.0):
     sleep_time = 0.0001
 
     # greedy_learning = Greedy_learning(0.1, duration_sec, sleep_time)
-    #alg = FunctionApproxQLearning(seed, wheels)
+    alg = FunctionApproxQLearning(seed, wheels)
     #alg = TabularQLearning(seed)
-    alg = DQNLearning(seed)
+    #alg = DQNLearning(seed)
     
     try:
         while time.time() - start_time < timeout:
