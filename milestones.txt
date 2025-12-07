@@ -1,0 +1,19 @@
+144 - room 1 - spawn
+128 - room 1 - plat 1
+80 - room 1 - plat 2
+56 - room 1 - plat 3
+32 - room 1 - small palt 
+
+-24 - room 2 - spawn
+-40 - room 2 - other side lower plat
+-64 - room 2 - other side upper plat
+
+-200 - room 3 - spawn
+-216 - room 3 - left ledge
+-272 - room 3 - middle floating block girder
+-256 - room 3 - middle floating block ice
+-304 - room 3 - left + right floating block
+
+-392 - room 4 - spawn
+-480 - room 4 - upper left platform
+-408 - room 4 - spikes ledge
