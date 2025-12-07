@@ -4,11 +4,10 @@ import torch.optim as optim
 from collections import deque
 import random
 import numpy as np
-from matplotlib import pyplot as plt
-from shared_mem import SharedMemoryBridge
-from tqdm import tqdm
+import os
+import json
+from collections import defaultdict
 
-import time
 # Minimal state
 class MinimalState:
     def __init__(self, big_state):
@@ -16,7 +15,11 @@ class MinimalState:
         self.vel_x = big_state.vel_x / 100.0
         self.vel_y = big_state.vel_y / 100.0
         self.dashes = big_state.dashes / 2.0
-        self.state = big_state.state  # KEEP THIS for now (to debug reward)
+        self.state = big_state.state
+        self.pos_x = big_state.pos_x
+        self.pos_y = big_state.pos_y
+        self.on_ground = big_state.on_ground
+        self.dead = big_state.dead
 
 # Minimal DQN
 class CelesteDQN(nn.Module):
@@ -57,203 +60,230 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-def get_reward(state, next_state):
-    """Compute reward based on state transition"""
-    reward = 0
-    
-    # Height reward (lower Y is better in Celeste coordinates)
-    height_gain = state.pos_y - next_state.pos_y
-    reward += height_gain * 0.01
-    
-    # Horizontal progress
-    horizontal_gain = next_state.pos_x - state.pos_x
-    reward += horizontal_gain * 0.1
-    
-    return reward
 
-def train():
-    # Setup
-    bridge = SharedMemoryBridge()
-    bridge.open(timeout_sec=10.0)
-    
-    q_network = CelesteDQN()
-    target_network = CelesteDQN()
-    target_network.load_state_dict(q_network.state_dict())
-    
-    optimizer = optim.Adam(q_network.parameters(), lr=1e-3)
-    replay_buffer = ReplayBuffer(capacity=10000)
-    
-    # Hyperparameters
-    epsilon = 1  # Start with full exploration
-    epsilon_decay = 0.995
-    epsilon_min = 0.1
-    gamma = 0.99
-    batch_size = 1024
-    
-    # Metrics
-    episode_rewards = []
-    episode_lengths = []
-    
-    step_count = 0
-    episode = 0
-    
-    while episode < 520:  
-        if episode > 500:
-            epsilon = 0 #do some epsilon=0 test at the end.
-            epsilon_min = 0
-        while bridge.shm[bridge.ACTION_READY_OFFSET] == 1:
-            pass    
-        state = bridge.read_state()
-        episode_reward = 0
-        total_steps = 0
+class DQNLearning:
+    def __init__(self, seed, discount=0.99, exploration_prob=1.0):
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
         
-        qsave = None
-        episode_length = 500
-        for step in range(500):  # Max 500 steps per episode
-            
-            # Convert state
-            min_state = MinimalState(state)
-            
-            # Epsilon-greedy action selection
-            if random.random() < epsilon:
-                action = random.randint(0, 127)
-            else:
-                with torch.no_grad():
-                    grid = torch.tensor(min_state.grid, dtype=torch.float32).unsqueeze(0)
-                    other = torch.tensor([
-                        min_state.vel_x,
-                        min_state.vel_y,
-                        min_state.dashes,
-                        min_state.state / 30.0
-                    ], dtype=torch.float32).unsqueeze(0)
-                    
-                    q_values = q_network(grid, other)
-                    if qsave is None:
-                        qsave = q_values
-                    action = q_values.argmax(dim=1).item()
-            #consume action for current state
-            bridge.write_action(action)
-            for _ in range(14):
-                while bridge.shm[bridge.ACTION_READY_OFFSET] == 1:
-                    pass   
-                next_state = bridge.read_state()
-                bridge.write_action(action)
-
-            #skip respawn states
-            reward = get_reward(state, next_state)
-            done = False
-            while next_state.state == 14:
-                reward = -10
-                done=True
-                while bridge.shm[bridge.ACTION_READY_OFFSET] == 1:
-                    pass
-                next_state = bridge.read_state()
-                bridge.write_action(0)
-
-            
-            # Track metrics
-            episode_reward += reward
-            total_steps += 1
-            
-            # Store transition
-            next_min_state = MinimalState(next_state)
-            replay_buffer.push(
-                (min_state.grid, [min_state.vel_x, min_state.vel_y, 
-                                  min_state.dashes, min_state.state / 30.0]),
-                action,
-                reward,
-                (next_min_state.grid, [next_min_state.vel_x, next_min_state.vel_y,
-                                       next_min_state.dashes, next_min_state.state / 30.0]),
-                done
-            )
-            #print(f"Step {step}: state_id={state.state}, action={action}, reward={reward}, done={done}")
-            state = next_state
-            if done:
-                episode_length = step
-                break
-        #return
-        #print(qsave)
-        # Train
-        if episode % 10 == 9 and len(replay_buffer) > batch_size:
-            train_step(q_network, target_network, replay_buffer, 
-                        optimizer, batch_size, gamma)
-            target_network.load_state_dict(q_network.state_dict())
+        # DQN components
+        self.q_network = CelesteDQN()
+        self.target_network = CelesteDQN()
+        self.target_network.load_state_dict(self.q_network.state_dict())
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=1e-3)
+        self.replay_buffer = ReplayBuffer(capacity=10000)
         
-        state = next_state
+        # Hyperparameters
+        self.discount = discount
+        self.exploration_prob = exploration_prob
+        self.epsilon_decay = 0.995
+        self.epsilon_min = 0.1
+        self.gamma = 0.99
+        self.batch_size = 1024
         
-        # Episode complete
-        episode += 1
-        episode_rewards.append(episode_reward)
-        episode_lengths.append(episode_length)
-        #print(f"episode", episode)
-
-        # Decay epsilon
-        epsilon = max(epsilon_min, epsilon * epsilon_decay)
+        # Episode tracking (matches other algorithms)
+        self.episode = 1
+        self.room = 1
+        self.actions = []
+        self.max_score = float("-inf")
+        self.running_max = float("-inf")
+        self.ground_y = 500
+        self.ground_dict = defaultdict(int)
         
-        # Log progress
-        if episode % 10 == 0:
-            avg_reward = np.mean(episode_rewards[-10:])
-            avg_length = np.mean(episode_lengths[-10:])
-            print(f"Episode {episode}: "
-                  f"Avg Reward={avg_reward:.2f}, "
-                  f"Average Length={avg_length:.2f}, "
-                  f"Epsilon={epsilon:.3f}")
+        # State buffer for temporal learning
+        self.sa_buffer = []
+        self.action_hold_count = 0
+        self.current_action = 0
         
+        # Logging
+        self.dirname = "dqn"
+        os.makedirs(self.dirname, exist_ok=True)
+        self.action_file = open(f"{self.dirname}/{seed}_seed_episode_log.json", 'w')
+        
+        # Training state
+        self.step_count = 0
+        
+    def get_action(self, big_state):
+        """Get action for current state (matches interface)"""
+        # Skip during respawn/transition states
+        if big_state.state == 13 or big_state.state == 14:
+            self.ground_y = big_state.pos_y
+            return 0
+        
+        state = MinimalState(big_state)
+        
+        # Epsilon-greedy action selection
+        if random.random() < self.exploration_prob:
+            action = random.randint(0, 127)
+            # Enforce action constraints (no left+right, no up+down)
+            if (action & 0x01 != 0) and (action & 0x02 != 0):
+                action -= 0x01
+            if (action & 0x04 != 0) and (action & 0x08 != 0):
+                action -= 0x08
+            if state.dashes == 0:
+                action &= 0x5F  # Disable dash
+        else:
+            with torch.no_grad():
+                grid = torch.tensor(state.grid, dtype=torch.float32).unsqueeze(0)
+                other = torch.tensor([
+                    state.vel_x,
+                    state.vel_y,
+                    state.dashes,
+                    state.state / 30.0
+                ], dtype=torch.float32).unsqueeze(0)
+                
+                q_values = self.q_network(grid, other)
+                action = q_values.argmax(dim=1).item()
+        
+        self.save_action(action)
+        self.sa_buffer.append((big_state, action))
+        return action
     
-    bridge.close()
-    return episode_rewards, episode_lengths
-
-
-def train_step(q_network, target_network, replay_buffer, optimizer, batch_size, gamma):
-    states, actions, rewards, next_states, dones = replay_buffer.sample(batch_size)
-    #print(states[0][0])
+    def get_reward(self, state, action):
+        """Compute reward (matches interface)"""
+        reward = ((1538 - state.pos_y) + (state.pos_x) * 10) * 10
+        
+        # Bonus for wall climbing
+        if state.state == 1:
+            reward += 10
+            if (action & 0x04 != 0):  # Pressing up while climbing
+                reward += 50
+        
+        # Bonus for reaching new low ground
+        if state.on_ground == 1 and state.pos_y < self.ground_y:
+            self.ground_y = state.pos_y
+            reward += 1000
+            print(f"Ground, {state.pos_y} {self.ground_dict[state.pos_y]}")
+            self.ground_dict[state.pos_y] += 1
+        
+        if reward > self.max_score:
+            print(reward)
+            self.max_score = reward
+        
+        return reward
     
-    # Convert to tensors
-    grids = torch.stack([torch.tensor(s[0], dtype=torch.float32) for s in states])
-    others = torch.stack([torch.tensor(s[1], dtype=torch.float32) for s in states])
-    actions = torch.tensor(actions, dtype=torch.long)
-    rewards = torch.tensor(rewards, dtype=torch.float32)
-    next_grids = torch.stack([torch.tensor(s[0], dtype=torch.float32) for s in next_states])
-    next_others = torch.stack([torch.tensor(s[1], dtype=torch.float32) for s in next_states])
-    dones = torch.tensor(dones, dtype=torch.float32)
+    def incorporate_feedback(self, episode_done, room_won):
+        """Update Q-network and handle episode transitions (matches interface)"""
+        if len(self.sa_buffer) < 2:
+            return
+        
+        big_state, action = self.sa_buffer[-2]
+        big_next_state, _ = self.sa_buffer[-1]
+        
+        state = MinimalState(big_state)
+        next_state = MinimalState(big_next_state)
+        
+        # Compute rewards
+        reward = self.get_reward(state, action)
+        next_reward = self.get_reward(next_state, 0)
+        
+        # Track max reward for episode
+        if reward > self.running_max:
+            self.running_max = reward
+        
+        # Check for death
+        done = next_state.dead
+        
+        # Store transition in replay buffer
+        state_tuple = (state.grid, [state.vel_x, state.vel_y, state.dashes, state.state / 30.0])
+        next_state_tuple = (next_state.grid, [next_state.vel_x, next_state.vel_y, 
+                                               next_state.dashes, next_state.state / 30.0])
+        
+        self.replay_buffer.push(state_tuple, action, next_reward, next_state_tuple, done)
+        
+        # Train every 10 episodes if buffer is large enough
+        if episode_done and self.episode % 10 == 0 and len(self.replay_buffer) > self.batch_size:
+            self._train_step()
+            # Update target network
+            self.target_network.load_state_dict(self.q_network.state_dict())
+        
+        # Handle episode end
+        if episode_done:
+            self.save_actions()
+            # Decay exploration
+            self.exploration_prob = max(self.epsilon_min, self.exploration_prob * self.epsilon_decay)
+            # Special: disable exploration after episode 500
+            if self.episode > 500:
+                self.exploration_prob = 0.0
+                self.epsilon_min = 0.0
+        
+        if room_won:
+            self.room += 1
+        
+        self.step_count += 1
     
-    # Current Q values
-    q_values = q_network(grids, others)
-    q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+    def _train_step(self):
+        """Internal: perform one gradient update"""
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+        
+        # Convert to tensors
+        grids = torch.stack([torch.tensor(s[0], dtype=torch.float32) for s in states])
+        others = torch.stack([torch.tensor(s[1], dtype=torch.float32) for s in states])
+        actions = torch.tensor(actions, dtype=torch.long)
+        rewards = torch.tensor(rewards, dtype=torch.float32)
+        next_grids = torch.stack([torch.tensor(s[0], dtype=torch.float32) for s in next_states])
+        next_others = torch.stack([torch.tensor(s[1], dtype=torch.float32) for s in next_states])
+        dones = torch.tensor(dones, dtype=torch.float32)
+        
+        # Current Q values
+        q_values = self.q_network(grids, others)
+        q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+        
+        # Target Q values
+        with torch.no_grad():
+            next_q_values = self.target_network(next_grids, next_others)
+            max_next_q = next_q_values.max(dim=1)[0]
+            targets = rewards + self.gamma * max_next_q * (1 - dones)
+        
+        # Loss and update
+        loss = nn.MSELoss()(q_values, targets)
+        
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), 10.0)
+        self.optimizer.step()
     
-    # Target Q values
-    with torch.no_grad():
-        next_q_values = target_network(next_grids, next_others)
-        max_next_q = next_q_values.max(dim=1)[0]
-        targets = rewards + gamma * max_next_q * (1 - dones)
-        #print(rewards)
-    # Loss and update
-    loss = nn.MSELoss()(q_values, targets)
+    def save_action(self, action):
+        """Save action for logging (matches interface)"""
+        self.actions.append(int(action))
     
-    optimizer.zero_grad()
-    loss.backward()
-    torch.nn.utils.clip_grad_norm_(q_network.parameters(), 10.0)
-    optimizer.step()
-
-
-if __name__ == "__main__":
-    rewards, episode_lengths = train()
+    def save_actions(self):
+        """Write episode data to JSON file (matches interface)"""
+        data_record = {
+            'episode': self.episode,
+            'room': self.room,
+            'ground_y': self.ground_y,
+            'reward': int(self.running_max),
+            'actions': self.actions
+        }
+        
+        json_string = json.dumps(data_record, separators=(',', ':'))
+        self.action_file.write(json_string + '\n')
+        
+        self.actions = []
+        if self.running_max > self.max_score:
+            self.max_score = self.running_max
+        self.running_max = 0
+        self.episode += 1
     
-    # Plot results
-    import matplotlib.pyplot as plt
+    def save_weights(self):
+        """Save model checkpoint (matches interface)"""
+        torch.save({
+            'q_network': self.q_network.state_dict(),
+            'target_network': self.target_network.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'episode': self.episode
+        }, f'{self.dirname}/checkpoint.pt')
     
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-    
-    ax1.plot(rewards)
-    ax1.set_title('Episode Rewards')
-    ax1.set_xlabel('Episode')
-    ax1.set_ylabel('Total Reward')
-    
-    ax2.plot(episode_lengths)
-    ax2.set_title('Episode Lengths')
-    ax2.set_xlabel('Episode')
-    ax2.set_ylabel('Number of Steps Survived')
-    ax2.legend()
-    
-    plt.tight_layout()
-    plt.savefig('episode_lengths.png')
+    def print_action(self, action):
+        """Debug: print action as string (matches interface)"""
+        action_str = ""
+        if (action & 0x01 != 0): action_str += "left "
+        if (action & 0x02 != 0): action_str += "right "
+        if (action & 0x04 != 0): action_str += "up "
+        if (action & 0x08 != 0): action_str += "down "
+        if (action & 0x10 != 0): action_str += "jump "
+        if (action & 0x20 != 0): action_str += "dash "
+        if (action & 0x40 != 0): action_str += "grab "
+        print(action_str)
