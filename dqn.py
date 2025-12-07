@@ -77,7 +77,7 @@ class DQNLearning:
         # Hyperparameters
         self.discount = discount
         self.exploration_prob = exploration_prob
-        self.epsilon_decay = 0.995
+        self.epsilon_decay = 0.998
         self.epsilon_min = 0.1
         self.gamma = 0.99
         self.batch_size = 1024
@@ -204,9 +204,6 @@ class DQNLearning:
             # Decay exploration
             self.exploration_prob = max(self.epsilon_min, self.exploration_prob * self.epsilon_decay)
             # Special: disable exploration after episode 500
-            if self.episode > 500:
-                self.exploration_prob = 0.0
-                self.epsilon_min = 0.0
         
         if room_won:
             self.room += 1
